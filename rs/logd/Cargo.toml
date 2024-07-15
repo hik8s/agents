@@ -1,0 +1,11 @@
+[package]
+name = "logd"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+inotify = "0.10.2"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
