@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [ 
     "rs/logd",
+    "rs/core",
 ]
 
 [workspace.package]
@@ -12,5 +13,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace.dependencies]
+tokio = { version = "1.36.0", features = ["full"] }
+tokio-stream = "0.1.14"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
