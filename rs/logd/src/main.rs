@@ -35,28 +35,48 @@ fn main() {
     let file = File::open(TEST_FILE_PATH).expect("Failed to open log file");
     let mut reader = io::BufReader::new(file);
     
-    loop {
-        let events = inotify.read_events_blocking(&mut event_buffer)
-            .expect("Error while reading events");
-        tracing::info!("Read events");
+    let (event_tx, event_rx) = mpsc::channel();
 
-        let mut has_event = false;
-        for event in events {
-            has_event = true;
-            if event.mask.contains(EventMask::Q_OVERFLOW) {
-                tracing::warn!("Event queue overflowed; some events may have been lost");
+    // Spawn a new thread to read events
+    std::thread::spawn(move || {
+        loop {
+            let events = inotify.read_events_blocking(&mut event_buffer)
+                .expect("Error while reading events");
+            tracing::debug!("CLOSE_WRITE event detected");
+            let mut has_event = false;
+            for event in events {
+                if event.mask.contains(EventMask::Q_OVERFLOW) {
+                    tracing::warn!("Event queue overflowed; some events may have been lost");
+                }
+                tracing::debug!("{:?}", event);
+                has_event = true;
+                // Send the first event to the main thread and break the loop
             }
+            event_tx.send(has_event).expect("Failed to send event");
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
-
+    });
+    
+    // Main thread
+    let mut counter = 0;
+    loop {
+        // Receive the event from the other thread
+        let has_event = event_rx.recv().expect("Failed to receive event");
+    
         // Read new entries
         if has_event {
-            let (tx, rx) = mpsc::channel();
-            if let Err(e) = reader::read_chunk(&mut reader, 1048576, tx) {
+            tracing::debug!("Reading new entries");
+            let (event_tx, event_rx) = mpsc::channel();
+            if let Err(e) = reader::read_chunk(&mut reader, 1048576, event_tx) {
                 tracing::error!("Failed to read lines: {}", e);
             }
-            for line in rx {
-                tracing::debug!("{}", line);
+            for line in event_rx {
+                counter += 1;
+                if counter % 10000 == 0 {
+                    tracing::info!("count: {} | {}", counter, line);
+                }
             }
         }
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }
