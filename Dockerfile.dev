@@ -1,4 +1,6 @@
 FROM rust:1.76 AS builder
 
+WORKDIR /workspaces/agents
+
 RUN apt-get update && apt-get install -y socat
 RUN cargo install cargo-watch
