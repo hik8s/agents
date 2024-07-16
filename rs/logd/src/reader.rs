@@ -3,20 +3,28 @@ use std::sync::mpsc::Sender;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[allow(unused)]
-pub fn read_single_lines(reader: &mut impl BufRead, line: &mut String, tx: Sender<String>) -> io::Result<()> {
+pub fn read_single_lines(
+    reader: &mut impl BufRead,
+    line: &mut String,
+    tx: Sender<String>,
+) -> io::Result<()> {
     loop {
         line.clear();
         match reader.read_line(line) {
             Ok(0) => break, // EOF reached
             Ok(_) => {
                 tx.send(line.trim_end().to_string()).unwrap();
-            },
+            }
             Err(error) => return Err(error),
         }
     }
     Ok(())
 }
-pub fn read_chunk(reader: &mut impl BufRead, batch_size: usize, tx: UnboundedSender<Vec<u8>>) -> io::Result<()> {
+pub fn read_chunk(
+    reader: &mut impl BufRead,
+    batch_size: usize,
+    tx: UnboundedSender<Vec<u8>>,
+) -> io::Result<()> {
     let mut buffer = String::with_capacity(batch_size);
     let mut line = String::new();
     loop {
@@ -30,7 +38,7 @@ pub fn read_chunk(reader: &mut impl BufRead, batch_size: usize, tx: UnboundedSen
                 Ok(n) => {
                     bytes_read += n;
                     buffer.push_str(&line);
-                },
+                }
                 Err(error) => return Err(error),
             }
         }

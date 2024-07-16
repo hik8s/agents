@@ -1,23 +1,30 @@
-use inotify::{Inotify, WatchMask, EventMask};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use inotify::{EventMask, Inotify, WatchMask};
 use std::fs::File;
 use std::io;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod reader;
-use std::sync::mpsc;
-use std::path::Path;
-use std::fs;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use bytes::Bytes;
-use std::collections::HashSet;
-use tokio_stream::StreamExt;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use reqwest::multipart::{Form, Part};
 use reqwest::Body;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fs;
+use std::io::Seek;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::StreamExt;
 const PATH: &str = "/var/log/pods";
-// /var/log/pods/<pod>/<container>/<0.log>
 
-fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBuf>, tx: &mpsc::Sender<HashSet<PathBuf>>) -> std::io::Result<()> {
+fn add_watches(
+    inotify: &mut Inotify,
+    path: &Path,
+    map: &mut HashMap<i32, PathBuf>,
+    tx: &mpsc::Sender<HashSet<PathBuf>>,
+) -> std::io::Result<()> {
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
@@ -28,7 +35,8 @@ fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBu
     }
 
     let watch = inotify
-        .watches().add(
+        .watches()
+        .add(
             path,
             WatchMask::MODIFY | WatchMask::CREATE | WatchMask::DELETE | WatchMask::CLOSE_WRITE,
         )
@@ -49,11 +57,10 @@ fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBu
 async fn main() {
     tracing_subscriber::registry()
         .with(
-        tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| "info".into()),
-    )
-    .with(tracing_subscriber::fmt::layer())
-    .init();
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
     tracing::info!("Starting logd...");
     let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| {
         tracing::info!("BASE_URL not set. Using default: http://host.docker.internal:8000");
@@ -66,11 +73,10 @@ async fn main() {
         Err(error) => tracing::error!("Failed to create directory: {}. Error: {}", PATH, error),
     }
 
-    let mut inotify = Inotify::init()
-        .expect("Error while initializing inotify instance");
+    let mut inotify = Inotify::init().expect("Error while initializing inotify instance");
 
     // event_buffer for reading close write events
-    // fits 25.6 events (40 bytes per event)    
+    // fits 25.6 events (40 bytes per event)
     let mut event_buffer = [0; 65536];
     let (event_tx, event_rx) = mpsc::channel();
 
@@ -82,7 +88,8 @@ async fn main() {
     // Spawn a new thread to read events
     std::thread::spawn(move || {
         loop {
-            let events = inotify.read_events_blocking(&mut event_buffer)
+            let events = inotify
+                .read_events_blocking(&mut event_buffer)
                 .expect("Error while reading events");
 
             let mut paths = HashSet::new();
@@ -90,9 +97,12 @@ async fn main() {
                 if event.mask.contains(EventMask::Q_OVERFLOW) {
                     tracing::warn!("Event queue overflowed; some events may have been lost");
                 }
-                if event.mask.contains(EventMask::CLOSE_WRITE) || event.mask.contains(EventMask::MODIFY) {
+                if event.mask.contains(EventMask::CLOSE_WRITE)
+                    || event.mask.contains(EventMask::MODIFY)
+                {
                     if let Some(name) = event.name {
-                        if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id()) {
+                        if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id())
+                        {
                             let path = dir_path.join(name);
                             paths.insert(path);
                         }
@@ -100,7 +110,8 @@ async fn main() {
                 }
                 if event.mask.contains(EventMask::CREATE) {
                     if let Some(name) = event.name {
-                        if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id()) {
+                        if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id())
+                        {
                             let path = dir_path.join(name);
                             if path.is_dir() {
                                 add_watches(&mut inotify, &path, &mut wd_to_path, &event_tx)
@@ -115,12 +126,8 @@ async fn main() {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
     });
-    
-    // Main thread
-    use std::io::Seek;
-    use std::sync::Arc;
-    use std::sync::Mutex;
 
+    // Main thread
     let file_positions: Arc<Mutex<HashMap<PathBuf, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     let client = reqwest::Client::new();
     loop {
@@ -132,7 +139,7 @@ async fn main() {
             }
         }
         let unique_paths_vec: Vec<PathBuf> = unique_paths.into_iter().collect();
-        // TODO: refactor to use one file_position not the entire hashmap 
+        // TODO: refactor to use one file_position not the entire hashmap
         let file_positions_clone = Arc::clone(&file_positions);
         let client_clone = client.clone();
         tokio::spawn(async move {
@@ -147,10 +154,12 @@ async fn main() {
                     }
                 };
                 let position = {
-                    let mut file_positions_lock = file_positions_clone.lock().expect("Failed to lock mutex");
+                    let mut file_positions_lock =
+                        file_positions_clone.lock().expect("Failed to lock mutex");
                     *file_positions_lock.entry(path.clone()).or_insert(0)
                 };
-                file.seek(std::io::SeekFrom::Start(position)).expect("Failed to seek to position");
+                file.seek(std::io::SeekFrom::Start(position))
+                    .expect("Failed to seek to position");
 
                 let mut reader = io::BufReader::new(file);
 
@@ -160,8 +169,11 @@ async fn main() {
                 }
                 // update file_position
                 {
-                    let mut file_positions_lock = file_positions_clone.lock().expect("Failed to lock mutex");
-                    *file_positions_lock.entry(path.clone()).or_insert(0) = reader.stream_position().expect("Failed to get current position");
+                    let mut file_positions_lock =
+                        file_positions_clone.lock().expect("Failed to lock mutex");
+                    *file_positions_lock.entry(path.clone()).or_insert(0) = reader
+                        .stream_position()
+                        .expect("Failed to get current position");
                 }
                 let parent_path = path.parent().unwrap().to_str().unwrap();
                 let file_name = path.file_name().unwrap().to_str().unwrap();
@@ -172,18 +184,24 @@ async fn main() {
                 });
                 tracing::debug!("Sending lines with metadata: {}", metadata.to_string());
                 let rx_stream = UnboundedReceiverStream::new(rx);
-                let stream = rx_stream.map(
-                    |item| Ok::<_, hyper::Error>(Bytes::copy_from_slice(&item))
-                );
+                let stream =
+                    rx_stream.map(|item| Ok::<_, hyper::Error>(Bytes::copy_from_slice(&item)));
 
                 let form = Form::new()
-                    .part("metadata", Part::text(metadata.to_string()).mime_str("application/json").unwrap())
-                    .part("stream", Part::stream(Body::wrap_stream(stream)).mime_str("application/octet-stream").unwrap());
-                
-                let res = client_clone.post(&endpoint)
-                    .multipart(form)
-                    .send()
-                    .await;
+                    .part(
+                        "metadata",
+                        Part::text(metadata.to_string())
+                            .mime_str("application/json")
+                            .unwrap(),
+                    )
+                    .part(
+                        "stream",
+                        Part::stream(Body::wrap_stream(stream))
+                            .mime_str("application/octet-stream")
+                            .unwrap(),
+                    );
+
+                let res = client_clone.post(&endpoint).multipart(form).send().await;
                 // TODO: retry mechanism
                 match res {
                     Ok(response) => {
@@ -191,18 +209,27 @@ async fn main() {
                             tracing::debug!("Lines sent successfully");
                         } else {
                             let status = response.status();
-                            let text = response.text().await.unwrap_or_else(|_| String::from("Failed to read response text"));
-                            tracing::error!("Failed to send lines, status: {}, response: {}", status, text);
+                            let text = response
+                                .text()
+                                .await
+                                .unwrap_or_else(|_| String::from("Failed to read response text"));
+                            tracing::error!(
+                                "Failed to send lines, status: {}, response: {}",
+                                status,
+                                text
+                            );
                         }
-                    },
-                    Err(error) => {
-                        match error.status() {
-                            Some(status_code) => {
-                                tracing::error!("Failed to send lines, status code: {}, error: {}", status_code, error);
-                            },
-                            None => {
-                                tracing::error!("Failed to send lines, error: {}", error);
-                            },
+                    }
+                    Err(error) => match error.status() {
+                        Some(status_code) => {
+                            tracing::error!(
+                                "Failed to send lines, status code: {}, error: {}",
+                                status_code,
+                                error
+                            );
+                        }
+                        None => {
+                            tracing::error!("Failed to send lines, error: {}", error);
                         }
                     },
                 }
