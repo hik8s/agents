@@ -9,20 +9,21 @@ use std::fs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use bytes::Bytes;
-use std::convert::Infallible;
+use std::collections::HashSet;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-
+use reqwest::multipart::{Form, Part};
+use reqwest::Body;
 const PATH: &str = "/var/log/pods";
 // /var/log/pods/<pod>/<container>/<0.log>
 
-fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBuf>) -> std::io::Result<()> {
+fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBuf>, tx: &mpsc::Sender<HashSet<PathBuf>>) -> std::io::Result<()> {
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let path = entry.path();
             tracing::info!("Adding watch for {:?}", path);
-            add_watches(inotify, &path, map)?;
+            add_watches(inotify, &path, map, tx)?;
         }
     }
 
@@ -34,6 +35,13 @@ fn add_watches(inotify: &mut Inotify, path: &Path, map: &mut HashMap<i32, PathBu
         .expect("Failed to add a watch");
 
     map.insert(watch.get_watch_descriptor_id(), path.to_path_buf());
+
+    // Send the path of the file that was added
+    if path.is_file() {
+        let mut paths = HashSet::new();
+        paths.insert(path.to_path_buf());
+        tx.send(paths).expect("Failed to send path");
+    }
 
     Ok(())
 }
@@ -47,19 +55,29 @@ async fn main() {
     .with(tracing_subscriber::fmt::layer())
     .init();
     tracing::info!("Starting logd...");
+    let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| {
+        tracing::info!("BASE_URL not set. Using default: http://host.docker.internal:8000");
+        String::from("http://host.docker.internal:8000")
+    });
+    // Create the directory if it does not exist
+    // TODO: move this to Dockerfile
+    match std::fs::create_dir_all(PATH) {
+        Ok(_) => tracing::info!("Created directory: {}", PATH),
+        Err(error) => tracing::error!("Failed to create directory: {}. Error: {}", PATH, error),
+    }
 
     let mut inotify = Inotify::init()
         .expect("Error while initializing inotify instance");
 
-    // Add a watch for each file in the directory
-    let mut wd_to_path = HashMap::new();
-    add_watches(&mut inotify, Path::new(PATH), &mut wd_to_path)
-        .expect("Failed to add directory watch");
-
     // event_buffer for reading close write events
     // fits 25.6 events (40 bytes per event)    
-    let mut event_buffer = [0; 1024];
+    let mut event_buffer = [0; 65536];
     let (event_tx, event_rx) = mpsc::channel();
+
+    // Add a watch for each file in the directory
+    let mut wd_to_path = HashMap::new();
+    add_watches(&mut inotify, Path::new(PATH), &mut wd_to_path, &event_tx)
+        .expect("Failed to add directory watch");
 
     // Spawn a new thread to read events
     std::thread::spawn(move || {
@@ -67,92 +85,129 @@ async fn main() {
             let events = inotify.read_events_blocking(&mut event_buffer)
                 .expect("Error while reading events");
 
+            let mut paths = HashSet::new();
             for event in events {
                 if event.mask.contains(EventMask::Q_OVERFLOW) {
                     tracing::warn!("Event queue overflowed; some events may have been lost");
                 }
-                if event.mask.contains(EventMask::CLOSE_WRITE) {
-                    tracing::debug!("CLOSE_WRITE event detected");
+                if event.mask.contains(EventMask::CLOSE_WRITE) || event.mask.contains(EventMask::MODIFY) {
                     if let Some(name) = event.name {
-                        tracing::debug!("name {:?}", name);
                         if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id()) {
                             let path = dir_path.join(name);
-                            tracing::debug!("path {}", path.to_str().unwrap());
-                            // Send the path of the changed file to the main thread
-                            event_tx.send(path).expect("Failed to send event");
+                            paths.insert(path);
                         }
                     }
                 }
                 if event.mask.contains(EventMask::CREATE) {
-                    tracing::debug!("CREATE event detected");
                     if let Some(name) = event.name {
                         if let Some(dir_path) = wd_to_path.get(&event.wd.get_watch_descriptor_id()) {
                             let path = dir_path.join(name);
                             if path.is_dir() {
-                                tracing::debug!("Adding watch for new directory: {:?}", path);
-                                add_watches(&mut inotify, &path, &mut wd_to_path)
+                                add_watches(&mut inotify, &path, &mut wd_to_path, &event_tx)
                                     .expect("Failed to add directory watch");
                             }
                         }
                     }
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            // Convert the HashSet into a Vec and send it over the channel
+            event_tx.send(paths).expect("Failed to send event");
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
     });
     
     // Main thread
     use std::io::Seek;
-    use std::sync::mpsc::TryRecvError;
-    
-    let mut file_positions: HashMap<PathBuf, u64> = HashMap::new();
+    use std::sync::Arc;
+    use std::sync::Mutex;
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    std::thread::spawn(move || {
-        loop {
-            // Try to receive the event from the other thread
-            match event_rx.try_recv() {
-                Ok(path) => {
-                    tracing::debug!("Event for file: {:?}", path);
+    let file_positions: Arc<Mutex<HashMap<PathBuf, u64>>> = Arc::new(Mutex::new(HashMap::new()));
+    let client = reqwest::Client::new();
+    loop {
+        let endpoint = format!("{}/class", base_url);
+        let mut unique_paths = HashSet::new();
+        while let Ok(paths_set) = event_rx.try_recv() {
+            for path in paths_set {
+                unique_paths.insert(path);
+            }
+        }
+        let unique_paths_vec: Vec<PathBuf> = unique_paths.into_iter().collect();
+        // TODO: refactor to use one file_position not the entire hashmap 
+        let file_positions_clone = Arc::clone(&file_positions);
+        let client_clone = client.clone();
+        tokio::spawn(async move {
+            for path in unique_paths_vec {
+                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-                    let mut file = File::open(&path).expect("Failed to open log file");
-                    let position = file_positions.entry(path.clone()).or_insert(0);
-                    file.seek(std::io::SeekFrom::Start(*position)).expect("Failed to seek to position");
-
-                    let mut reader = io::BufReader::new(file);
-
-                    // Read new entries
-                    if let Err(e) = reader::read_chunk(&mut reader, 1048576, tx.clone()) {
-                        tracing::error!("Failed to read lines: {}", e);
+                let mut file = match File::open(&path) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        tracing::error!("Failed to open file {}: {}", path.display(), e);
+                        continue;
                     }
-                    // update file_position
-                    *position = reader.stream_position().expect("Failed to get current position");
-                },
-                Err(TryRecvError::Empty) => {
-                    // No event to receive
-                },
-                Err(TryRecvError::Disconnected) => {
-                    tracing::error!("Channel has been disconnected");
-                    break;
+                };
+                let position = {
+                    let mut file_positions_lock = file_positions_clone.lock().expect("Failed to lock mutex");
+                    *file_positions_lock.entry(path.clone()).or_insert(0)
+                };
+                file.seek(std::io::SeekFrom::Start(position)).expect("Failed to seek to position");
+
+                let mut reader = io::BufReader::new(file);
+
+                // Read new entries
+                if let Err(e) = reader::read_chunk(&mut reader, 1048576, tx) {
+                    tracing::error!("Failed to read lines from file {}: {}", path.display(), e);
+                }
+                // update file_position
+                {
+                    let mut file_positions_lock = file_positions_clone.lock().expect("Failed to lock mutex");
+                    *file_positions_lock.entry(path.clone()).or_insert(0) = reader.stream_position().expect("Failed to get current position");
+                }
+                let parent_path = path.parent().unwrap().to_str().unwrap();
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+
+                let metadata = serde_json::json!({
+                    "path": parent_path,
+                    "file": file_name
+                });
+                tracing::debug!("Sending lines with metadata: {}", metadata.to_string());
+                let rx_stream = UnboundedReceiverStream::new(rx);
+                let stream = rx_stream.map(
+                    |item| Ok::<_, hyper::Error>(Bytes::copy_from_slice(&item))
+                );
+
+                let form = Form::new()
+                    .part("metadata", Part::text(metadata.to_string()).mime_str("application/json").unwrap())
+                    .part("stream", Part::stream(Body::wrap_stream(stream)).mime_str("application/octet-stream").unwrap());
+                
+                let res = client_clone.post(&endpoint)
+                    .multipart(form)
+                    .send()
+                    .await;
+                // TODO: retry mechanism
+                match res {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            tracing::debug!("Lines sent successfully");
+                        } else {
+                            let status = response.status();
+                            let text = response.text().await.unwrap_or_else(|_| String::from("Failed to read response text"));
+                            tracing::error!("Failed to send lines, status: {}, response: {}", status, text);
+                        }
+                    },
+                    Err(error) => {
+                        match error.status() {
+                            Some(status_code) => {
+                                tracing::error!("Failed to send lines, status code: {}, error: {}", status_code, error);
+                            },
+                            None => {
+                                tracing::error!("Failed to send lines, error: {}", error);
+                            },
+                        }
+                    },
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-    });
-    tracing::info!("sending request...");
-    let client = reqwest::Client::new();
-
-    let rx_stream = UnboundedReceiverStream::new(rx);
-    let stream = rx_stream.map(|item| Ok::<_, Infallible>(Bytes::from(item.into_bytes())));
-
-    let res = client.post("http://host.docker.internal:8000/lines")
-        .body(reqwest::Body::wrap_stream(stream))
-        .send()
-        .await;
-
-    match res {
-        Ok(_) => tracing::info!("Lines sent successfully"),
-        Err(e) => tracing::error!("Failed to send lines: {}", e),
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
-    tracing::info!("Main thread done...");
 }

@@ -1,13 +1,14 @@
 use std::io::{self, BufRead};
 use std::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 
+#[allow(unused)]
 pub fn read_single_lines(reader: &mut impl BufRead, line: &mut String, tx: Sender<String>) -> io::Result<()> {
     loop {
         line.clear();
         match reader.read_line(line) {
             Ok(0) => break, // EOF reached
             Ok(_) => {
-                tracing::debug!("{}", line.trim_end());
                 tx.send(line.trim_end().to_string()).unwrap();
             },
             Err(error) => return Err(error),
@@ -15,14 +16,14 @@ pub fn read_single_lines(reader: &mut impl BufRead, line: &mut String, tx: Sende
     }
     Ok(())
 }
-
-pub fn read_chunk(reader: &mut impl BufRead, batch_size: usize, tx: Sender<String>) -> io::Result<()> {
+pub fn read_chunk(reader: &mut impl BufRead, batch_size: usize, tx: UnboundedSender<Vec<u8>>) -> io::Result<()> {
     let mut buffer = String::with_capacity(batch_size);
+    let mut line = String::new();
     loop {
         buffer.clear();
         let mut bytes_read = 0;
         while bytes_read < batch_size {
-            let mut line = String::new();
+            line.clear();
             // if line exceeds batch_size, buffer will grow larger than batch_size
             match reader.read_line(&mut line) {
                 Ok(0) => break, // EOF reached
@@ -36,10 +37,7 @@ pub fn read_chunk(reader: &mut impl BufRead, batch_size: usize, tx: Sender<Strin
         if bytes_read == 0 {
             break;
         }
-        for line in buffer.lines() {
-            tracing::debug!("{}", line.trim_end());
-            tx.send(line.trim_end().to_string()).unwrap();
-        }
+        tx.send(buffer.as_bytes().to_vec()).unwrap();
     }
     Ok(())
 }
