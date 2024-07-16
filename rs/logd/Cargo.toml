@@ -1,18 +1,23 @@
 [package]
-name = "logd"
-version.workspace = true
 edition.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+name = "logd"
+version = "0.1.0"
 
 [dependencies]
-hyper = "1.2"
-futures = "0.3"
-serde_json = "1.0"
-reqwest = { version = "0.11.24", features = ["json", "stream", "multipart", "rustls-tls"], default-features = false }
-tokio = { workspace = true }
-tokio-stream = { workspace = true }
 bytes = "1.5"
+chrono = "0.4.35"
+futures = "0.3"
+hyper = "1.2"
 inotify = "0.10.2"
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+reqwest = {version = "0.12.5", features = [
+    "json",
+    "multipart",
+    "rustls-tls",
+    "stream",
+], default-features = false}
+rstest = "0.21.0"
+serde_json = "1.0"
+tokio = {workspace = true}
+tokio-stream = {workspace = true}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
