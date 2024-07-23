@@ -2,8 +2,10 @@ use inotify::{EventMask, Inotify, WatchMask};
 use std::fs::File;
 use std::io;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+mod auth;
 mod reader;
 use bytes::Bytes;
+use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::{Form, Part};
 use reqwest::Body;
 use std::collections::HashMap;
@@ -200,8 +202,13 @@ async fn main() {
                             .mime_str("application/octet-stream")
                             .unwrap(),
                     );
-
-                let res = client_clone.post(&endpoint).multipart(form).send().await;
+                let token = auth::get_auth0_token().await.unwrap();
+                let res = client_clone
+                    .post(&endpoint)
+                    .multipart(form)
+                    .header(AUTHORIZATION, format!("Bearer {}", token))
+                    .send()
+                    .await;
                 // TODO: retry mechanism
                 match res {
                     Ok(response) => {
