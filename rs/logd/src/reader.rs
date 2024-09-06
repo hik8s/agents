@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use std::io::{self, BufRead};
 use std::sync::mpsc::Sender;
 use tokio::sync::mpsc::UnboundedSender;
@@ -23,7 +24,7 @@ pub fn read_single_lines(
 pub fn read_chunk(
     reader: &mut impl BufRead,
     batch_size: usize,
-    tx: UnboundedSender<Vec<u8>>,
+    tx: UnboundedSender<Result<Bytes, hyper::Error>>,
 ) -> io::Result<()> {
     let mut buffer = String::with_capacity(batch_size);
     let mut line = String::new();
@@ -45,7 +46,8 @@ pub fn read_chunk(
         if bytes_read == 0 {
             break;
         }
-        tx.send(buffer.as_bytes().to_vec()).unwrap();
+        tx.send(Ok(Bytes::copy_from_slice(buffer.as_bytes())))
+            .unwrap();
     }
     Ok(())
 }

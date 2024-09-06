@@ -1,13 +1,17 @@
+use auth::Auth;
+use form::create_form_data;
 use inotify::{EventMask, Inotify, WatchMask};
+use io::{get_file_position, get_reader, set_file_position};
 use std::fs::File;
-use std::io;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::error;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod auth;
+mod env;
+mod form;
+mod io;
 mod reader;
-use bytes::Bytes;
 use reqwest::header::AUTHORIZATION;
-use reqwest::multipart::{Form, Part};
-use reqwest::Body;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -17,8 +21,6 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
-use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_stream::StreamExt;
 const PATH: &str = "/var/log/pods";
 
 fn add_watches(
@@ -68,6 +70,7 @@ async fn main() {
         tracing::info!("BASE_URL not set. Using default: http://host.docker.internal:8000");
         String::from("http://host.docker.internal:8000")
     });
+    let auth = Auth::new().unwrap();
     // Create the directory if it does not exist
     // TODO: move this to Dockerfile
     match std::fs::create_dir_all(PATH) {
@@ -144,39 +147,32 @@ async fn main() {
         // TODO: refactor to use one file_position not the entire hashmap
         let file_positions_clone = Arc::clone(&file_positions);
         let client_clone = client.clone();
+        let auth_clone = auth.clone();
         tokio::spawn(async move {
             for path in unique_paths_vec {
                 let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-                let mut file = match File::open(&path) {
+                let file = match File::open(&path) {
                     Ok(file) => file,
                     Err(e) => {
                         tracing::error!("Failed to open file {}: {}", path.display(), e);
                         continue;
                     }
                 };
-                let position = {
-                    let mut file_positions_lock =
-                        file_positions_clone.lock().expect("Failed to lock mutex");
-                    *file_positions_lock.entry(path.clone()).or_insert(0)
-                };
-                file.seek(std::io::SeekFrom::Start(position))
-                    .expect("Failed to seek to position");
 
-                let mut reader = io::BufReader::new(file);
+                // Get file position
+                let position = get_file_position(&path, &file_positions_clone);
+                let mut reader = get_reader(file, position).expect("Failed to get reader");
 
                 // Read new entries
-                if let Err(e) = reader::read_chunk(&mut reader, 1048576, tx) {
-                    tracing::error!("Failed to read lines from file {}: {}", path.display(), e);
-                }
-                // update file_position
-                {
-                    let mut file_positions_lock =
-                        file_positions_clone.lock().expect("Failed to lock mutex");
-                    *file_positions_lock.entry(path.clone()).or_insert(0) = reader
-                        .stream_position()
-                        .expect("Failed to get current position");
-                }
+                reader::read_chunk(&mut reader, 1048576, tx)
+                    .map_err(|e| error!("Failed to read lines from file {}: {}", path.display(), e))
+                    .unwrap();
+
+                // update position
+                let position = reader.stream_position().unwrap();
+                set_file_position(&path, &file_positions_clone, position).unwrap();
+
                 let parent_path = path.parent().unwrap().to_str().unwrap();
                 let file_name = path.file_name().unwrap().to_str().unwrap();
 
@@ -184,25 +180,9 @@ async fn main() {
                     "path": parent_path,
                     "file": file_name
                 });
-                tracing::debug!("Sending lines with metadata: {}", metadata.to_string());
-                let rx_stream = UnboundedReceiverStream::new(rx);
-                let stream =
-                    rx_stream.map(|item| Ok::<_, hyper::Error>(Bytes::copy_from_slice(&item)));
-
-                let form = Form::new()
-                    .part(
-                        "metadata",
-                        Part::text(metadata.to_string())
-                            .mime_str("application/json")
-                            .unwrap(),
-                    )
-                    .part(
-                        "stream",
-                        Part::stream(Body::wrap_stream(stream))
-                            .mime_str("application/octet-stream")
-                            .unwrap(),
-                    );
-                let token = auth::get_auth0_token().await.unwrap();
+                let stream = UnboundedReceiverStream::new(rx);
+                let form = create_form_data(metadata, stream).unwrap();
+                let token = auth_clone.get_auth0_token().await.unwrap();
                 let res = client_clone
                     .post(&endpoint)
                     .multipart(form)
