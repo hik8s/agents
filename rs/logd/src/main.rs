@@ -1,6 +1,6 @@
 use error::LogDaemonError;
-use threads::event::process_inotify_events;
-use threads::read::read_and_track_files;
+use threads::event::process_file_events;
+use threads::read::read_file_and_send_data;
 
 use tracing::info;
 use util::tracing::setup_tracing;
@@ -21,14 +21,14 @@ async fn main() -> Result<(), LogDaemonError> {
     // Spawn a new thread to read events
     let mut threads = Vec::new();
 
-    let (event_sender, event_receiver) = mpsc::channel();
+    let (file_event_sender, file_event_receiver) = mpsc::channel();
     threads.push(tokio::spawn(async move {
-        process_inotify_events(event_sender)?;
+        process_file_events(file_event_sender)?;
         Ok::<(), LogDaemonError>(())
     }));
 
     threads.push(tokio::spawn(async move {
-        read_and_track_files(event_receiver).await?;
+        read_file_and_send_data(file_event_receiver).await?;
         Ok::<(), LogDaemonError>(())
     }));
 

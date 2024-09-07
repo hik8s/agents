@@ -16,7 +16,7 @@ use crate::util::io::get_reader;
 use super::error::ReadThreadError;
 use super::reader::read_chunk;
 
-pub async fn read_and_track_files(
+pub async fn read_file_and_send_data(
     event_receiver: Receiver<HashSet<PathBuf>>,
 ) -> Result<(), ReadThreadError> {
     let mut positions: HashMap<PathBuf, u64> = HashMap::new();
