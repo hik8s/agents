@@ -8,7 +8,6 @@ use util::tracing::setup_tracing;
 mod client;
 mod constant;
 mod error;
-mod reader;
 mod threads;
 mod util;
 

@@ -11,9 +11,10 @@ use tracing::error;
 
 use crate::client::create_form_data;
 use crate::client::Hik8sClient;
-use crate::{reader::read_chunk, util::io::get_reader};
+use crate::util::io::get_reader;
 
 use super::error::ReadThreadError;
+use super::reader::read_chunk;
 
 pub async fn read_and_track_files(
     event_receiver: Receiver<HashSet<PathBuf>>,

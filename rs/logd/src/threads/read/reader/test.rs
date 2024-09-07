@@ -1,63 +1,10 @@
-use bytes::Bytes;
-use std::io::{self, BufRead};
-use std::sync::mpsc::Sender;
-use tokio::sync::mpsc::UnboundedSender;
-
-#[allow(unused)]
-pub fn read_single_lines(
-    reader: &mut impl BufRead,
-    line: &mut String,
-    tx: Sender<String>,
-) -> io::Result<()> {
-    loop {
-        line.clear();
-        match reader.read_line(line) {
-            Ok(0) => break, // EOF reached
-            Ok(_) => {
-                tx.send(line.trim_end().to_string()).unwrap();
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(())
-}
-pub fn read_chunk(
-    reader: &mut impl BufRead,
-    batch_size: usize,
-    tx: UnboundedSender<Result<Bytes, hyper::Error>>,
-) -> io::Result<()> {
-    let mut buffer = String::with_capacity(batch_size);
-    let mut line = String::new();
-    loop {
-        buffer.clear();
-        let mut bytes_read = 0;
-        while bytes_read < batch_size {
-            line.clear();
-            // if line exceeds batch_size, buffer will grow larger than batch_size
-            match reader.read_line(&mut line) {
-                Ok(0) => break, // EOF reached
-                Ok(n) => {
-                    bytes_read += n;
-                    buffer.push_str(&line);
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        if bytes_read == 0 {
-            break;
-        }
-        tx.send(Ok(Bytes::copy_from_slice(buffer.as_bytes())))
-            .unwrap();
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Cursor;
     use std::sync::mpsc;
     use std::thread;
+
+    use super::super::reader::read_single_lines;
 
     #[test]
     fn test_read_single_lines_empty() {
@@ -97,6 +44,7 @@ mod tests {
         assert_eq!(rx.recv().unwrap(), "Goodbye, world!"); // Second message
         assert!(rx.recv().is_err()); // No more messages should be sent
     }
+
     #[test]
     fn test_read_single_lines_continues_reading() {
         let data = "Hello, world!\nGoodbye, world!\n";
