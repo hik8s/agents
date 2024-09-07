@@ -1,5 +1,5 @@
 use error::LogDaemonError;
-use threads::file_event::process_file_events;
+use threads::listen_file_event::process_file_events;
 use threads::read_and_send::read_file_and_send_data;
 
 use tokio::task::JoinHandle;
