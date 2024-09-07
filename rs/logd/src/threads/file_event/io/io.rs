@@ -1,16 +1,9 @@
 use inotify::{Inotify, WatchMask};
 use std::collections::HashSet;
 use std::fs;
-use std::fs::File;
-use std::io::{self, BufReader, Seek};
 use std::path::Path;
 use std::sync::mpsc::Sender;
 use std::{collections::HashMap, path::PathBuf};
-
-pub fn get_reader(mut file: File, position: u64) -> Result<BufReader<File>, io::Error> {
-    file.seek(std::io::SeekFrom::Start(position))?;
-    Ok(BufReader::new(file))
-}
 
 pub fn add_watches(
     inotify: &mut Inotify,

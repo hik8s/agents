@@ -6,7 +6,6 @@ use tokio::task::JoinHandle;
 use tracing::info;
 use util::tracing::setup_tracing;
 
-mod client;
 mod constant;
 mod error;
 mod threads;

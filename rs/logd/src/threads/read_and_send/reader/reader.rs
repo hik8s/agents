@@ -1,5 +1,8 @@
 use bytes::Bytes;
-use std::io::BufRead;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Seek},
+};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::ReaderError;
@@ -24,6 +27,11 @@ pub fn read_single_lines(
         }
     }
     Ok(())
+}
+
+pub fn get_reader(mut file: File, position: u64) -> Result<BufReader<File>, std::io::Error> {
+    file.seek(std::io::SeekFrom::Start(position))?;
+    Ok(BufReader::new(file))
 }
 
 pub fn read_chunk(

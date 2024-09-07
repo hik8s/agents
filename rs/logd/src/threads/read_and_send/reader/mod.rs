@@ -3,4 +3,4 @@ mod reader;
 mod test;
 
 pub use error::ReaderError;
-pub use reader::read_chunk;
+pub use reader::{get_reader, read_chunk};

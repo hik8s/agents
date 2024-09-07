@@ -9,12 +9,9 @@ use std::{
 };
 use tracing::error;
 
-use crate::client::create_form_data;
-use crate::client::Hik8sClient;
-use crate::util::io::get_reader;
-
+use super::client::{create_form_data, Hik8sClient};
 use super::error::ReadThreadError;
-use super::reader::read_chunk;
+use super::reader::{get_reader, read_chunk};
 
 pub async fn read_file_and_send_data(
     event_receiver: Receiver<HashSet<PathBuf>>,

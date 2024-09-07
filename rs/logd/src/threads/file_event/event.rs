@@ -7,9 +7,9 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 
 use crate::constant::LOG_PATH;
-use crate::util::io::add_watches;
 
 use super::error::EventThreadError;
+use super::io::add_watches;
 
 pub fn process_file_events(sender: mpsc::Sender<HashSet<PathBuf>>) -> Result<(), EventThreadError> {
     let mut inotify = Inotify::init()?;
