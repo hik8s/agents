@@ -4,13 +4,10 @@ use threads::read::read_and_track_files;
 
 use tracing::info;
 use util::tracing::setup_tracing;
-mod auth;
+
 mod client;
 mod constant;
-mod env;
 mod error;
-mod form;
-mod io;
 mod reader;
 mod threads;
 mod util;

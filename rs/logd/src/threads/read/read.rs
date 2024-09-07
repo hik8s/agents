@@ -9,10 +9,9 @@ use std::{
 };
 use tracing::error;
 
-use crate::auth::Auth;
+use crate::client::create_form_data;
 use crate::client::Hik8sClient;
-use crate::form::create_form_data;
-use crate::{io::get_reader, reader::read_chunk};
+use crate::{reader::read_chunk, util::io::get_reader};
 
 use super::error::ReadThreadError;
 
@@ -21,7 +20,6 @@ pub async fn read_and_track_files(
 ) -> Result<(), ReadThreadError> {
     let mut positions: HashMap<PathBuf, u64> = HashMap::new();
     let client = Hik8sClient::new().unwrap();
-    let auth: Auth = Auth::new().unwrap();
     while let Ok(paths) = event_receiver.try_recv() {
         for path in paths {
             // Read file
@@ -63,14 +61,8 @@ pub async fn read_and_track_files(
             // Form data
             let form_data = create_form_data(metadata, stream).unwrap();
 
-            // Auth token
-            let token = auth.get_auth0_token().await.unwrap();
-
             // Stream data
-            client
-                .send_multipart_request(form_data, token)
-                .await
-                .unwrap();
+            client.send_multipart_request(form_data).await.unwrap();
         }
     }
     Ok(())

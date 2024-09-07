@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 
 use crate::constant::LOG_PATH;
-use crate::io::add_watches;
+use crate::util::io::add_watches;
 
 use super::error::EventThreadError;
 

@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::env::get_env_var;
+use crate::util::env::get_env_var;
 
 use super::AuthError;
 
