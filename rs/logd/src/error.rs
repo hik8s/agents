@@ -1,13 +1,18 @@
 use thiserror::Error;
 
-use crate::threads::{file_event::EventThreadError, read_and_send::ReadThreadError};
+use crate::{
+    threads::{file_event::EventThreadError, read_and_send::ReadThreadError},
+    util::tracing::TracingSetupError,
+};
 
 #[derive(Error, Debug)]
 pub enum LogDaemonError {
+    #[error("Tracing setup error: {0}")]
+    TracingSetup(#[from] TracingSetupError),
     #[error("Event thread error: {0}")]
-    EventThreadError(#[from] EventThreadError),
+    EventThread(#[from] EventThreadError),
     #[error("Read thread error: {0}")]
-    ReadThreadError(#[from] ReadThreadError),
+    ReadThread(#[from] ReadThreadError),
     #[error("Task join error: {0}")]
-    JoinError(#[from] tokio::task::JoinError),
+    TokioJoin(#[from] tokio::task::JoinError),
 }

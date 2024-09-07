@@ -16,7 +16,7 @@ use std::sync::mpsc;
 
 #[tokio::main]
 async fn main() -> Result<(), LogDaemonError> {
-    setup_tracing();
+    setup_tracing()?;
     info!("Starting logd...");
 
     // Track threads
