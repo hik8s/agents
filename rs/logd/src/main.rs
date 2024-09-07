@@ -1,6 +1,6 @@
 use error::LogDaemonError;
-use threads::event::process_file_events;
-use threads::read::read_file_and_send_data;
+use threads::file_event::process_file_events;
+use threads::read_and_send::read_file_and_send_data;
 
 use tracing::info;
 use util::tracing::setup_tracing;

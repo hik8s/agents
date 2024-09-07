@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::{
     client::Hik8sClientError,
-    threads::{event::EventThreadError, read::ReadThreadError},
+    threads::{file_event::EventThreadError, read_and_send::ReadThreadError},
 };
 
 #[derive(Error, Debug)]
