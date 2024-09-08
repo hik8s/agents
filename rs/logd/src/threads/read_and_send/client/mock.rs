@@ -15,10 +15,6 @@ impl MockHik8sClient {
 }
 
 impl Client for MockHik8sClient {
-    fn new() -> Self {
-        unimplemented!()
-    }
-
     async fn send_multipart_request(&self, form_data: Form) -> Result<(), Hik8sClientError> {
         // received data is evalued in the test
         let mut data = self.received_data.lock().unwrap();

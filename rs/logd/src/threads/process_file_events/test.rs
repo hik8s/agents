@@ -1,33 +1,25 @@
 #[cfg(test)]
 mod integration_tests {
 
-    use std::fs::File;
-    use std::io::Write;
-
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc};
     use std::thread;
     use std::time::Duration;
     use tempfile::tempdir;
 
-    use crate::error::LogDaemonError;
-    use crate::threads::process_file_events::process_file_events;
+    use crate::threads::process_file_events::{process_file_events, EventThreadError};
+    use crate::util::test::test_util::create_test_file;
     use crate::util::tracing::setup_tracing;
 
     #[test]
-    fn test_process_file_events_picks_up_new_file() -> Result<(), LogDaemonError> {
+    fn test_process_file_events_picks_up_new_file() -> Result<(), EventThreadError> {
         setup_tracing()?;
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let temp_path = temp_dir.path().to_path_buf();
 
         // Create a new file in the LOG_PATH directory
-        let new_file1_path = temp_path.join("new_file1.txt");
-        let mut file = File::create(&new_file1_path).expect("Failed to create new file");
-        let text = "This is a line of text.";
-        file.write_all(text.as_bytes())
-            .expect("Failed to write to file");
-        File::create(&new_file1_path).expect("Failed to create new file");
+        let file1_path = create_test_file(&temp_path, "file1")?;
 
         let termination_signal = Arc::new(AtomicBool::new(false));
         let termination_signal_clone = Arc::clone(&termination_signal);
@@ -43,12 +35,7 @@ mod integration_tests {
         });
 
         // Create a new file in the LOG_PATH directory
-        let new_file2_path = temp_path.join("new_file2.txt");
-        File::create(&new_file2_path).expect("Failed to create new file");
-        let mut file = File::create(&new_file2_path).expect("Failed to create new file");
-        let text = "This is a line of text.";
-        file.write_all(text.as_bytes())
-            .expect("Failed to write to file");
+        let file2_path = create_test_file(&temp_path, "file2")?;
 
         // Collect received paths
         let mut received_paths = Vec::new();
@@ -67,8 +54,8 @@ mod integration_tests {
         }
 
         // Check if the new file paths are in the received paths
-        assert!(received_paths.contains(&new_file1_path));
-        assert!(received_paths.contains(&new_file2_path));
+        assert!(received_paths.contains(&file1_path));
+        assert!(received_paths.contains(&file2_path));
 
         // Signal the thread to stop
         termination_signal.store(true, Ordering::SeqCst);

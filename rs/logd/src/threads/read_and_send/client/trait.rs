@@ -1,7 +1,6 @@
 use super::{Hik8sClient, Hik8sClientError};
 
 pub trait Client {
-    fn new() -> Self;
     async fn send_multipart_request(
         &self,
         form_data: reqwest::multipart::Form,
@@ -9,10 +8,6 @@ pub trait Client {
 }
 
 impl Client for Hik8sClient {
-    fn new() -> Self {
-        Hik8sClient::new().unwrap()
-    }
-
     async fn send_multipart_request(
         &self,
         form_data: reqwest::multipart::Form,
