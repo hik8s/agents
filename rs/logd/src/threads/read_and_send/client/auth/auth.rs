@@ -1,5 +1,8 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 use crate::util::env::get_env_var;
 
@@ -17,6 +20,7 @@ pub struct Auth {
     auth0_domain: String,
     client_id: String,
     audience: String,
+    token: Arc<Mutex<Option<(String, Instant)>>>,
 }
 
 impl Auth {
@@ -25,10 +29,11 @@ impl Auth {
             auth0_domain: get_env_var("AUTH0_DOMAIN")?,
             client_id: get_env_var("CLIENT_ID")?,
             audience: get_env_var("AUTH0_AUDIENCE")?,
+            token: Arc::new(Mutex::new(None)),
         })
     }
 
-    pub async fn get_auth0_token(&self) -> Result<String, AuthError> {
+    async fn fetch_auth0_token(&self) -> Result<(String, Instant), AuthError> {
         let client = Client::new();
         let client_secret = get_env_var("CLIENT_SECRET")?;
 
@@ -46,7 +51,21 @@ impl Auth {
             .await?;
 
         let token_response: Auth0TokenResponse = res.json().await?;
-        Ok(token_response.access_token)
+        let expiration_time = Instant::now() + Duration::from_secs(token_response.expires_in);
+        Ok((token_response.access_token, expiration_time))
+    }
+
+    pub async fn get_auth0_token(&self) -> Result<String, AuthError> {
+        let mut token_guard = self.token.lock().await;
+        if let Some((ref token, ref expiration_time)) = *token_guard {
+            if Instant::now() < *expiration_time {
+                return Ok(token.clone());
+            }
+        }
+
+        let (new_token, new_expiration_time) = self.fetch_auth0_token().await?;
+        *token_guard = Some((new_token.clone(), new_expiration_time));
+        Ok(new_token)
     }
 }
 
