@@ -1,5 +1,6 @@
+use constant::LOG_PATH;
 use error::LogDaemonError;
-use threads::listen_file_event::process_file_events;
+use threads::process_file_events::process_file_events;
 use threads::read_and_send::read_file_and_send_data;
 
 use tokio::task::JoinHandle;
@@ -11,7 +12,9 @@ mod error;
 mod threads;
 mod util;
 
-use std::sync::mpsc;
+use std::path::Path;
+use std::sync::atomic::AtomicBool;
+use std::sync::{mpsc, Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), LogDaemonError> {
@@ -21,10 +24,17 @@ async fn main() -> Result<(), LogDaemonError> {
     // Track threads
     let mut threads: Vec<JoinHandle<Result<(), LogDaemonError>>> = Vec::new();
 
+    let termination_signal = Arc::new(AtomicBool::new(false));
+    let termination_signal_clone = Arc::clone(&termination_signal);
+
     // File events thread
     let (file_event_sender, file_event_receiver) = mpsc::channel();
     threads.push(tokio::spawn(async move {
-        process_file_events(file_event_sender)?;
+        process_file_events(
+            Path::new(LOG_PATH),
+            file_event_sender,
+            termination_signal_clone,
+        )?;
         Ok(())
     }));
 

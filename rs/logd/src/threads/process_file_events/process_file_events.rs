@@ -1,17 +1,23 @@
 use inotify::{EventMask, Inotify};
-use std::collections::HashMap;
 use std::collections::HashSet;
+use std::io::ErrorKind;
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
-
-use crate::constant::LOG_PATH;
+use std::sync::Arc;
 
 use super::error::EventThreadError;
-use super::file_listener::add_watches;
 
-pub fn process_file_events(sender: mpsc::Sender<HashSet<PathBuf>>) -> Result<(), EventThreadError> {
+use super::directory_listener::DirectoryListener;
+
+pub fn process_file_events(
+    base_path: &Path,
+    sender: mpsc::Sender<HashSet<PathBuf>>,
+    termination_signal: Arc<AtomicBool>,
+) -> Result<(), EventThreadError> {
     let mut inotify = Inotify::init()?;
 
     // buffer for reading close write events
@@ -19,20 +25,27 @@ pub fn process_file_events(sender: mpsc::Sender<HashSet<PathBuf>>) -> Result<(),
     let mut buffer = [0; 65536];
 
     // Add a watch for each file in the directory
-    let mut watch_descriptors = HashMap::new();
-    add_watches(
-        &mut inotify,
-        Path::new(LOG_PATH),
-        &mut watch_descriptors,
-        &sender,
-    )?;
+    let mut listener = DirectoryListener::new(sender.clone())?;
+    listener.add_watches(base_path)?;
 
     loop {
-        let events: inotify::Events<'_> = inotify
-            .read_events_blocking(&mut buffer)
-            .expect("Error while reading events");
+        if termination_signal.load(Ordering::SeqCst) {
+            break;
+        }
+        let events: inotify::Events<'_> = match inotify.read_events(&mut buffer) {
+            Ok(events) => events,
+            Err(e) => {
+                if e.kind() == ErrorKind::WouldBlock {
+                    // No events found
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    continue;
+                } else {
+                    Err(e)?
+                }
+            }
+        };
 
-        let mut paths = HashSet::new();
+        let mut files = HashSet::new();
         for event in events {
             if event.mask.contains(EventMask::Q_OVERFLOW) {
                 tracing::warn!("Event queue overflowed; some events may have been lost");
@@ -41,29 +54,29 @@ pub fn process_file_events(sender: mpsc::Sender<HashSet<PathBuf>>) -> Result<(),
             {
                 if let Some(name) = event.name {
                     if let Some(dir_path) =
-                        watch_descriptors.get(&event.wd.get_watch_descriptor_id())
+                        listener.get_descriptor(&event.wd.get_watch_descriptor_id())
                     {
                         let path = dir_path.join(name);
-                        paths.insert(path);
+                        files.insert(path);
                     }
                 }
             }
             if event.mask.contains(EventMask::CREATE) {
                 if let Some(name) = event.name {
                     if let Some(dir_path) =
-                        watch_descriptors.get(&event.wd.get_watch_descriptor_id())
+                        listener.get_descriptor(&event.wd.get_watch_descriptor_id())
                     {
                         let path = dir_path.join(name);
                         if path.is_dir() {
-                            add_watches(&mut inotify, &path, &mut watch_descriptors, &sender)
+                            listener
+                                .add_watches(&path)
                                 .expect("Failed to add directory watch");
                         }
                     }
                 }
             }
         }
-        // Convert the HashSet into a Vec and send it over the channel
-        sender.send(paths).expect("Failed to send event");
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        sender.send(files).expect("Failed to send event");
     }
+    Ok(())
 }

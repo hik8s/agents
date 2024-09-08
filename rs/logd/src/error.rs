@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    threads::{listen_file_event::EventThreadError, read_and_send::ReadThreadError},
+    threads::{process_file_events::EventThreadError, read_and_send::ReadThreadError},
     util::tracing::TracingSetupError,
 };
 
