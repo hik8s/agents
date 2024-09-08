@@ -1,7 +1,7 @@
 use constant::LOG_PATH;
 use error::LogDaemonError;
 use threads::process_file_events::process_file_events;
-use threads::read_and_send::read_file_and_send_data;
+use threads::read_and_send::{read_file_and_send_data, Hik8sClient};
 
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -39,8 +39,9 @@ async fn main() -> Result<(), LogDaemonError> {
     }));
 
     // Read and send thread
+    let client = Hik8sClient::new()?;
     threads.push(tokio::spawn(async move {
-        read_file_and_send_data(file_event_receiver).await?;
+        read_file_and_send_data(file_event_receiver, client).await?;
         Ok(())
     }));
 

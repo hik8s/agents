@@ -1,7 +1,10 @@
 use thiserror::Error;
 
 use crate::{
-    threads::{process_file_events::EventThreadError, read_and_send::ReadThreadError},
+    threads::{
+        process_file_events::EventThreadError,
+        read_and_send::{Hik8sClientError, ReadThreadError},
+    },
     util::tracing::TracingSetupError,
 };
 
@@ -15,4 +18,6 @@ pub enum LogDaemonError {
     ReadThread(#[from] ReadThreadError),
     #[error("Task join error: {0}")]
     TokioJoin(#[from] tokio::task::JoinError),
+    #[error("Hik8s client error: {0}")]
+    Hik8sClient(#[from] Hik8sClientError),
 }

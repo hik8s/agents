@@ -9,15 +9,15 @@ use std::{
 };
 use tracing::error;
 
-use super::client::{create_form_data, Hik8sClient};
+use super::client::{create_form_data, Client};
 use super::error::ReadThreadError;
 use super::reader::{get_reader, read_chunk};
 
-pub async fn read_file_and_send_data(
+pub async fn read_file_and_send_data<C: Client>(
     event_receiver: Receiver<HashSet<PathBuf>>,
+    client: C,
 ) -> Result<(), ReadThreadError> {
     let mut positions: HashMap<PathBuf, u64> = HashMap::new();
-    let client = Hik8sClient::new().unwrap();
     while let Ok(paths) = event_receiver.try_recv() {
         for path in paths {
             // Read file

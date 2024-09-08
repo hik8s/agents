@@ -9,7 +9,6 @@ mod integration_tests {
     use std::thread;
     use std::time::Duration;
     use tempfile::tempdir;
-    use tracing::info;
 
     use crate::error::LogDaemonError;
     use crate::threads::process_file_events::process_file_events;
@@ -53,7 +52,7 @@ mod integration_tests {
 
         // Collect received paths
         let mut received_paths = Vec::new();
-        let timeout = Duration::from_secs(5);
+        let timeout = Duration::from_millis(100);
         let start = std::time::Instant::now();
 
         // Loop to receive multiple events
@@ -67,7 +66,6 @@ mod integration_tests {
             }
         }
 
-        info!("Received paths: {:?}", received_paths);
         // Check if the new file paths are in the received paths
         assert!(received_paths.contains(&new_file1_path));
         assert!(received_paths.contains(&new_file2_path));
@@ -75,7 +73,6 @@ mod integration_tests {
         // Signal the thread to stop
         termination_signal.store(true, Ordering::SeqCst);
 
-        info!("Joining thread");
         handle.join().expect("Failed to join thread");
         Ok(())
     }
