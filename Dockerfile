@@ -1,5 +1,7 @@
 FROM rust:1.76 AS builder
 
+RUN mkdir -p /var/log/pods
+
 RUN apt-get update && apt-get install -y lld clang
 
 COPY ./rs ./rs

@@ -23,6 +23,7 @@ The code in this program is specific to Linux and requires a development contain
     docker run -it \
     --volume "$(pwd)/rs:$WORKDIR/rs" \
     --volume "$(pwd)/Cargo.toml:$WORKDIR/Cargo.toml" \
+    --volume "$(pwd)/.env:$WORKDIR/.env" \
     $IMAGE_NAME
     ```
 

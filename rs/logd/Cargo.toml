@@ -4,20 +4,21 @@ name = "logd"
 version = "0.1.1"
 
 [dependencies]
-bytes = "1.5"
-chrono = "0.4.35"
-futures = "0.3"
-hyper = "1.2"
-inotify = "0.10.2"
-reqwest = {version = "0.12.5", features = [
+bytes = "1.7.1"
+futures = "0.3.30"
+hyper = "1.4.1"
+inotify = "0.11.0"
+reqwest = {version = "0.12.7", features = [
     "json",
     "multipart",
     "rustls-tls",
     "stream",
 ], default-features = false}
-rstest = "0.21.0"
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
+rstest = "0.22.0"
+serde = {version = "1.0.210", features = ["derive"]}
+serde_json = "1.0.128"
+tempfile = {workspace = true}
+thiserror = {workspace = true}
 tokio = {workspace = true}
 tokio-stream = {workspace = true}
 tracing = {workspace = true}
