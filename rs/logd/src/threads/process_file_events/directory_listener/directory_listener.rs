@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
+use tracing::info;
 
 use super::error::DirectoryListenerError;
 
@@ -48,7 +49,10 @@ impl DirectoryListener {
         if path.is_file() {
             let mut paths = HashSet::new();
             paths.insert(path.to_path_buf());
-            self.sender.send(paths)?;
+            self.sender.send(paths).map_err(|e| {
+                info!("Got error {e}");
+                e
+            })?;
         }
 
         Ok(())

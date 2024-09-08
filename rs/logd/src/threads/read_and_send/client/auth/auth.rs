@@ -81,6 +81,8 @@ mod tests {
         let auth = Auth::new()?;
         let result = auth.get_auth0_token().await?;
         assert!(!result.is_empty());
+        let result2 = auth.get_auth0_token().await?;
+        assert_eq!(result, result2);
         Ok(())
     }
 }
