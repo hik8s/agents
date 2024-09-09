@@ -32,11 +32,11 @@ impl DirectoryListener {
             for entry in fs::read_dir(path)? {
                 let entry = entry?;
                 let path = entry.path();
-                tracing::info!("Adding watch for {:?}", path);
                 self.add_watches(&path)?;
             }
         }
 
+        info!("Adding watch for {:?}", path);
         let watch = self.inotify.watches().add(
             path,
             WatchMask::MODIFY | WatchMask::CREATE | WatchMask::DELETE | WatchMask::CLOSE_WRITE,
@@ -49,10 +49,7 @@ impl DirectoryListener {
         if path.is_file() {
             let mut paths = HashSet::new();
             paths.insert(path.to_path_buf());
-            self.sender.send(paths).map_err(|e| {
-                info!("Got error {e}");
-                e
-            })?;
+            self.sender.send(paths)?;
         }
 
         Ok(())

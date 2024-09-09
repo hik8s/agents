@@ -6,6 +6,6 @@ use thiserror::Error;
 pub enum DirectoryListenerError {
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
-    #[error("Failed to send path: {0}")]
+    #[error("Failed to send path: {0:?}")]
     Send(#[from] SendError<HashSet<PathBuf>>),
 }

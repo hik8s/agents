@@ -20,4 +20,6 @@ pub enum LogDaemonError {
     TokioJoin(#[from] tokio::task::JoinError),
     #[error("Hik8s client error: {0}")]
     Hik8sClient(#[from] Hik8sClientError),
+    #[error("I/O error: {0}")]
+    IoError(#[from] std::io::Error),
 }

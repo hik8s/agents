@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod integration_tests {
     use std::collections::HashSet;
+    use std::sync::atomic::AtomicBool;
     use std::sync::{mpsc, Arc, Mutex};
-    use std::thread;
-    use std::time::Duration;
     use tempfile::tempdir;
+    use tracing::info;
 
     use crate::threads::read_and_send::client::MockHik8sClient;
     use crate::threads::read_and_send::{read_file_and_send_data, ReadThreadError};
     use crate::util::test::test_util::create_test_file;
     use crate::util::tracing::setup_tracing;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_read_file_and_send_data() -> Result<(), ReadThreadError> {
         setup_tracing()?;
 
@@ -32,14 +32,13 @@ mod integration_tests {
         let client = MockHik8sClient::new(Arc::clone(&received_data));
 
         // Spawn a thread to run the read_file_and_send_data function
+        let termination_signal = Arc::new(AtomicBool::new(false));
+        let termination_signal_clone = Arc::clone(&termination_signal);
         let handle = tokio::spawn(async move {
-            read_file_and_send_data(receiver, client)
+            read_file_and_send_data(receiver, client, termination_signal_clone)
                 .await
                 .expect("Failed to read and send data");
         });
-
-        // Wait a bit to ensure the thread is running
-        thread::sleep(Duration::from_millis(50));
 
         // Send two path with data
         let mut paths = HashSet::new();
@@ -53,8 +52,10 @@ mod integration_tests {
         sender.send(paths).unwrap();
 
         // Wait for the thread to process the files
+        drop(sender);
         handle.await.unwrap();
 
+        info!("Threads finished");
         // Verify that the files were read and data was sent
         let data: std::sync::MutexGuard<'_, Vec<reqwest::multipart::Form>> =
             received_data.lock().unwrap();

@@ -3,16 +3,16 @@ mod integration_tests {
 
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc};
-    use std::thread;
     use std::time::Duration;
     use tempfile::tempdir;
+    use tokio::task::JoinHandle;
 
     use crate::threads::process_file_events::{process_file_events, EventThreadError};
     use crate::util::test::test_util::create_test_file;
     use crate::util::tracing::setup_tracing;
 
-    #[test]
-    fn test_process_file_events_picks_up_new_file() -> Result<(), EventThreadError> {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_process_file_events_picks_up_new_file() -> Result<(), EventThreadError> {
         setup_tracing()?;
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temp dir");
@@ -29,10 +29,11 @@ mod integration_tests {
 
         // Spawn a thread to run the process_file_events function
         let temp_path_clone = temp_path.clone();
-        let handle = thread::spawn(move || {
-            process_file_events(&temp_path_clone, sender, termination_signal_clone)
-                .expect("Failed to process file events");
-        });
+        let mut threads: Vec<JoinHandle<Result<(), EventThreadError>>> = Vec::new();
+        threads.push(tokio::spawn(async move {
+            process_file_events(&temp_path_clone, sender, termination_signal_clone)?;
+            Ok(())
+        }));
 
         // Create a new file in the LOG_PATH directory
         let file2_path = create_test_file(&temp_path, "file2")?;
@@ -60,7 +61,9 @@ mod integration_tests {
         // Signal the thread to stop
         termination_signal.store(true, Ordering::SeqCst);
 
-        handle.join().expect("Failed to join thread");
+        for thread in threads {
+            thread.await.unwrap()?;
+        }
         Ok(())
     }
 }

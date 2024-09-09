@@ -2,7 +2,7 @@ mod auth;
 mod client;
 mod error;
 mod form;
-mod mock;
+pub mod mock;
 mod r#trait;
 
 pub use client::Hik8sClient;

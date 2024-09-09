@@ -9,6 +9,7 @@ use util::tracing::setup_tracing;
 
 mod constant;
 mod error;
+mod test;
 mod threads;
 mod util;
 
@@ -35,13 +36,16 @@ async fn main() -> Result<(), LogDaemonError> {
             file_event_sender,
             termination_signal_clone,
         )?;
+        info!("File events thread finished");
         Ok(())
     }));
 
     // Read and send thread
     let client = Hik8sClient::new()?;
+    let termination_signal_clone = Arc::clone(&termination_signal);
     threads.push(tokio::spawn(async move {
-        read_file_and_send_data(file_event_receiver, client).await?;
+        read_file_and_send_data(file_event_receiver, client, termination_signal_clone).await?;
+        info!("Read and send thread finished");
         Ok(())
     }));
 

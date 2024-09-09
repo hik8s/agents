@@ -1,6 +1,7 @@
 use inotify::{EventMask, Inotify};
 use std::collections::HashSet;
 use std::io::ErrorKind;
+use tracing::info;
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -18,6 +19,7 @@ pub fn process_file_events(
     sender: mpsc::Sender<HashSet<PathBuf>>,
     termination_signal: Arc<AtomicBool>,
 ) -> Result<(), EventThreadError> {
+    info!("Starting process_file_events thread...");
     let mut inotify = Inotify::init()?;
 
     // buffer for reading close write events
