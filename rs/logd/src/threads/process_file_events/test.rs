@@ -8,7 +8,7 @@ mod integration_tests {
     use tokio::task::JoinHandle;
 
     use crate::threads::process_file_events::{process_file_events, EventThreadError};
-    use crate::util::test::test_util::create_test_file;
+    use crate::util::test::test_util::{create_test_file, write_to_existing_file};
     use crate::util::tracing::setup_tracing;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -35,12 +35,14 @@ mod integration_tests {
             Ok(())
         }));
 
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
         // Create a new file in the LOG_PATH directory
         let file2_path = create_test_file(&temp_path, "file2")?;
-
+        write_to_existing_file(&file1_path, "This is the third line of file1.")?;
         // Collect received paths
         let mut received_paths = Vec::new();
-        let timeout = Duration::from_millis(100);
+        let timeout = Duration::from_millis(500);
         let start = std::time::Instant::now();
 
         // Loop to receive multiple events
@@ -58,9 +60,10 @@ mod integration_tests {
         assert!(received_paths.contains(&file1_path));
         assert!(received_paths.contains(&file2_path));
 
+        assert_eq!(received_paths.len(), 3);
+
         // Signal the thread to stop
         termination_signal.store(true, Ordering::SeqCst);
-
         for thread in threads {
             thread.await.unwrap()?;
         }

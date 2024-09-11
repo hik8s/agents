@@ -1,4 +1,4 @@
-use inotify::{EventMask, Inotify};
+use inotify::EventMask;
 use std::collections::HashSet;
 use std::io::ErrorKind;
 use tracing::info;
@@ -20,8 +20,6 @@ pub fn process_file_events(
     termination_signal: Arc<AtomicBool>,
 ) -> Result<(), EventThreadError> {
     info!("Starting process_file_events thread...");
-    let mut inotify = Inotify::init()?;
-
     // buffer for reading close write events
     // fits 25.6 events (40 bytes per event)
     let mut buffer = [0; 65536];
@@ -34,7 +32,7 @@ pub fn process_file_events(
         if termination_signal.load(Ordering::SeqCst) {
             break;
         }
-        let events: inotify::Events<'_> = match inotify.read_events(&mut buffer) {
+        let events: inotify::Events<'_> = match listener.inotify.read_events(&mut buffer) {
             Ok(events) => events,
             Err(e) => {
                 if e.kind() == ErrorKind::WouldBlock {

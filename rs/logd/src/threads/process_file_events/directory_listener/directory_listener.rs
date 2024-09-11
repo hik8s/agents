@@ -8,7 +8,7 @@ use tracing::info;
 use super::error::DirectoryListenerError;
 
 pub struct DirectoryListener {
-    inotify: Inotify,
+    pub inotify: Inotify,
     pub watch_descriptors: HashMap<i32, PathBuf>,
     sender: Sender<HashSet<PathBuf>>,
 }
