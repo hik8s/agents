@@ -30,6 +30,11 @@ pub async fn read_file_and_send_data<C: Client>(
             Ok(paths) => {
                 for path in paths {
                     // Read file
+                    if path.extension().and_then(|ext| ext.to_str()) == Some("gz") {
+                        info!("Skipping .gz file: {}", path.display());
+                        continue;
+                    }
+
                     let file = match File::open(&path) {
                         Ok(file) => file,
                         Err(e) => {

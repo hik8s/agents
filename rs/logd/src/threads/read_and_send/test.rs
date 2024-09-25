@@ -20,9 +20,10 @@ mod integration_tests {
         let temp_path = temp_dir.path().to_path_buf();
 
         // Create the first test file
-        let file1_path = create_test_file(&temp_path, "file1")?;
-        let file2_path = create_test_file(&temp_path, "file2")?;
-        let file3_path = create_test_file(&temp_path, "file3")?;
+        let file1_path = create_test_file(&temp_path, "file1.txt")?;
+        let file2_path = create_test_file(&temp_path, "file2.txt")?;
+        let file3_path = create_test_file(&temp_path, "file3.txt")?;
+        let file4_path = create_test_file(&temp_path, "file4.gz")?;
 
         // Create a channel for communication
         let (sender, receiver) = mpsc::channel();
@@ -49,6 +50,11 @@ mod integration_tests {
         // Send one path with data
         let mut paths = HashSet::new();
         paths.insert(file3_path);
+        sender.send(paths).unwrap();
+
+        // Send one path with .gz file
+        let mut paths = HashSet::new();
+        paths.insert(file4_path);
         sender.send(paths).unwrap();
 
         // Wait for the thread to process the files
