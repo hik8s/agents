@@ -9,7 +9,7 @@ use std::{
     fs::File,
     sync::mpsc::Receiver,
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use super::client::{create_form_data, Client};
 use super::error::ReadThreadError;
@@ -33,6 +33,8 @@ pub async fn read_file_and_send_data<C: Client>(
                     if path.extension().and_then(|ext| ext.to_str()) == Some("gz") {
                         info!("Skipping .gz file: {}", path.display());
                         continue;
+                    } else {
+                        debug!("Reading file: {}", path.display());
                     }
 
                     let file = match File::open(&path) {
@@ -75,7 +77,10 @@ pub async fn read_file_and_send_data<C: Client>(
                     let form_data = create_form_data(metadata, stream).unwrap();
 
                     // Stream data
-                    client.send_multipart_request(form_data).await.unwrap();
+                    if let Err(e) = client.send_multipart_request(form_data).await {
+                        error!("Failed to send data: {}", e);
+                        continue;
+                    }
                 }
             }
             Err(e) => {
