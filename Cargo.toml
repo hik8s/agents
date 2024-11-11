@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["rs/logd"]
+members = ["rs/logd", "rs/reflectord"]
 
 [workspace.package]
 edition = "2021"
