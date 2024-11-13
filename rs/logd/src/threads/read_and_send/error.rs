@@ -1,7 +1,7 @@
 use std::io;
 use thiserror::Error;
 
-use crate::util::tracing::TracingSetupError;
+use shared::tracing::TracingSetupError;
 
 use super::client::Hik8sClientError;
 

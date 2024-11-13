@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
-use crate::util::env::get_env_var;
+use shared::env::get_env_var;
 
 use super::AuthError;
 

@@ -3,9 +3,9 @@ use error::LogDaemonError;
 use threads::process_file_events::process_file_events;
 use threads::read_and_send::{read_file_and_send_data, Hik8sClient};
 
+use shared::tracing::setup_tracing;
 use tokio::task::JoinHandle;
 use tracing::info;
-use util::tracing::setup_tracing;
 
 mod constant;
 mod error;

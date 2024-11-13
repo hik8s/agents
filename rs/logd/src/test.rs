@@ -13,7 +13,7 @@ mod integration_tests {
     use crate::threads::read_and_send::read_file_and_send_data;
     use crate::threads::read_and_send::MockHik8sClient;
     use crate::util::test::test_util::create_test_file;
-    use crate::util::tracing::setup_tracing;
+    use shared::tracing::setup_tracing;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn test_main_with_mock_client() -> Result<(), LogDaemonError> {

@@ -1,7 +1,7 @@
 use thiserror::Error;
 use tracing::subscriber::SetGlobalDefaultError;
 
-use crate::util::env::EnvError;
+use crate::env::EnvError;
 
 #[derive(Error, Debug)]
 pub enum TracingSetupError {

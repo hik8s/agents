@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::util::env::EnvError;
+use shared::env::EnvError;
 
 #[derive(Debug, Error)]
 pub enum AuthError {

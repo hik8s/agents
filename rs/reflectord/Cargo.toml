@@ -10,4 +10,8 @@ kube = {version = "0.96", features = ["runtime"]}
 serde = "1.0.214"
 serde_json = "1.0.132"
 serde_yaml = "0.9.33"
+shared = {workspace = true}
+thiserror = {workspace = true}
 tokio = {version = "1", features = ["full"]}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}

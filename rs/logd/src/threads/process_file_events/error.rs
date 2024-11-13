@@ -1,7 +1,6 @@
+use shared::tracing::TracingSetupError;
 use std::io;
 use thiserror::Error;
-
-use crate::util::tracing::TracingSetupError;
 
 use super::directory_listener::DirectoryListenerError;
 

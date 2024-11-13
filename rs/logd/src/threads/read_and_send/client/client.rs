@@ -1,7 +1,7 @@
 use crate::constant::HIK8S_ROUTE_LOG;
-use crate::util::env::get_env_var;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{multipart::Form, Client};
+use shared::env::get_env_var;
 
 use super::auth::Auth;
 use super::Hik8sClientError;
