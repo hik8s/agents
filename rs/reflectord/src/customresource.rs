@@ -33,6 +33,7 @@ pub async fn list_all_custom_resources(
                 let dynamic_api: Api<DynamicObject> = Api::all_with(client.clone(), &api_resource);
 
                 // Step 4: List all instances of this custom resource
+                tracing::info!("Listing Custom Resources for CRD: {:?}", api_resource);
                 match dynamic_api.list(&ListParams::default()).await {
                     Ok(custom_resources) => {
                         for cr in &custom_resources {
@@ -44,7 +45,14 @@ pub async fn list_all_custom_resources(
                                 crd_name,
                                 cr.metadata.name.clone().unwrap_or_default()
                             );
-                            setup_dynamic_watcher(client.clone(), &api_resource).await?;
+
+                            if let Err(e) =
+                                write_cr_to_file(cr, &group, version_name, &crd.spec.names.kind)
+                            {
+                                eprintln!("Failed to write CR to file: {}", e);
+                            }
+
+                            // setup_dynamic_watcher(client.clone(), &api_resource).await?;
                             // println!(
                             //     "Found Custom Resource: {}",
                             //     cr.metadata.name.unwrap_or_default()
@@ -79,6 +87,50 @@ async fn list_crds(client: Client) -> Result<(), Box<dyn Error>> {
             println!("Found CRD: {}", crd_name);
         }
     }
+
+    Ok(())
+}
+
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::Path;
+
+fn write_cr_to_file(
+    cr: &DynamicObject,
+    group: &str,
+    version: &str,
+    kind: &str,
+) -> Result<(), Box<dyn Error>> {
+    let namespace = cr
+        .metadata
+        .namespace
+        .as_ref()
+        .unwrap_or(&"not_namespaced".to_owned())
+        .to_owned();
+
+    // Create directory structure
+    let base_path = Path::new(".data")
+        .join("crds")
+        .join(group)
+        .join(version)
+        .join(kind);
+    fs::create_dir_all(&base_path)?;
+
+    // Generate filename from CR name
+    let filename = format!(
+        "{}_{}_{}.yaml",
+        namespace,
+        kind.to_lowercase(),
+        cr.metadata.name.as_ref().unwrap_or(&"unknown".to_string())
+    );
+    let file_path = base_path.join(filename);
+
+    // Serialize CR to YAML
+    let yaml = serde_yaml::to_string(&cr)?;
+
+    // Write to file
+    let mut file = File::create(file_path)?;
+    file.write_all(yaml.as_bytes())?;
 
     Ok(())
 }

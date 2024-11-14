@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use shared::env::EnvError;
+use crate::env::EnvError;
 
 use super::auth::AuthError;
 

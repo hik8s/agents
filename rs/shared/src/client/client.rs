@@ -1,7 +1,6 @@
-use crate::constant::HIK8S_ROUTE_LOG;
+use crate::env::get_env_var;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{multipart::Form, Client};
-use shared::env::get_env_var;
 
 use super::auth::Auth;
 use super::Hik8sClientError;
@@ -19,14 +18,18 @@ impl Hik8sClient {
         let auth = Auth::new()?;
         Ok(Self { client, host, auth })
     }
-    pub fn get_uri(&self) -> String {
-        format!("https://{}/{}", self.host, HIK8S_ROUTE_LOG)
+    pub fn get_uri(&self, route: &str) -> String {
+        format!("https://{}/{}", self.host, route)
     }
-    pub async fn send_multipart_request(&self, form: Form) -> Result<(), Hik8sClientError> {
+    pub async fn send_multipart_request(
+        &self,
+        route: &str,
+        form: Form,
+    ) -> Result<(), Hik8sClientError> {
         let token = self.auth.get_auth0_token().await.unwrap();
 
         self.client
-            .post(&self.get_uri())
+            .post(&self.get_uri(route))
             .multipart(form)
             .header(AUTHORIZATION, format!("Bearer {}", token))
             .send()

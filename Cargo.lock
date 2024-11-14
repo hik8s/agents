@@ -940,7 +940,6 @@ name = "logd"
 version = "0.2.5"
 dependencies = [
  "bytes",
- "dotenv",
  "futures",
  "hyper",
  "inotify",
@@ -954,7 +953,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1323,7 +1321,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1729,7 +1726,15 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "dotenv",
+ "hyper",
+ "reqwest",
+ "serde",
+ "serde_json",
  "thiserror",
+ "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
 ]

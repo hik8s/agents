@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod integration_tests {
+    use shared::client::MockHik8sClient;
     use std::collections::HashSet;
     use std::sync::atomic::AtomicBool;
     use std::sync::{mpsc, Arc, Mutex};
     use tempfile::tempdir;
     use tracing::info;
 
-    use crate::threads::read_and_send::client::MockHik8sClient;
     use crate::threads::read_and_send::{read_file_and_send_data, ReadThreadError};
     use crate::util::test::test_util::create_test_file;
     use shared::tracing::setup_tracing;
