@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      IMAGE: "logd"
+      IMAGES: "logd watchd"
       REGISTRY: "ghcr.io/hik8s"
 
     steps:
@@ -21,11 +21,14 @@ jobs:
       
       - name: Docker Build
         run: |
-          docker build --tag $IMAGE .
+          for IMAGE in $IMAGES; do
+            docker build --target $IMAGE --tag $IMAGE .
+          done
 
       - name: Docker Tag and Push
         run: |
-          VERSION=$(grep -E 'version = "[^"]*"$' rs/$IMAGE/Cargo.toml | awk -F\" '{print $2}')
-          docker tag $IMAGE $REGISTRY/$IMAGE:$VERSION
-          docker push $REGISTRY/$IMAGE:$VERSION
-          
+          for IMAGE in $IMAGES; do
+            VERSION=$(grep -E 'version = "[^"]*"$' rs/$IMAGE/Cargo.toml | awk -F\" '{print $2}')
+            docker tag $IMAGE $REGISTRY/$IMAGE:$VERSION
+            docker push $REGISTRY/$IMAGE:$VERSION
+          done
