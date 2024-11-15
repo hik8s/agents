@@ -8,7 +8,7 @@ use crate::env::get_env_var;
 
 use super::AuthError;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Auth0TokenResponse {
     access_token: String,
     token_type: String,

@@ -1,72 +1,79 @@
 use futures::StreamExt;
-use kube::api::{ApiResource, DynamicObject};
 
-use kube::runtime::{reflector, watcher};
-use kube::{Api, Client};
-use std::collections::HashMap;
+use kube::runtime::watcher::{watcher, Event as WatcherEvent};
+use kube::Api;
+use serde::Serialize;
+use shared::client::Hik8sClient;
 use std::error::Error;
-use std::hash::Hash;
-use std::sync::{Arc, Mutex};
+use std::fmt::Debug;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
-use crate::resource::handle_resource_event;
+use crate::constant::LOCAL_THREAD_LIMIT;
+use tracing::error;
 
-pub async fn setup_watcher<T: Clone + std::fmt::Debug + Send + Sync + 'static>(
-    client: Client,
+pub async fn setup_watcher<T: kube::Resource>(
+    api: Api<T>,
+    hik8s_client: Hik8sClient,
+    route: &'static str,
+    report_deleted: bool,
 ) -> Result<(), Box<dyn Error>>
 where
-    T: kube::Resource + std::fmt::Debug + Clone + Send + Sync + 'static,
-    T: for<'de> serde::Deserialize<'de>,
-    T: serde::Serialize,
-    <T as kube::Resource>::DynamicType: Default + Eq + Hash + Clone,
+    T: Debug + Clone + Send + Sync + 'static,
+    T: for<'kubeapi> serde::Deserialize<'kubeapi> + Serialize,
 {
-    let api: Api<T> = Api::all(client);
-    let (reader, writer) = reflector::store();
-    let rf = reflector(writer, watcher(api, Default::default()));
+    let watcher = watcher(api, Default::default());
 
-    let state = Arc::new(Mutex::new(HashMap::new()));
-    let state_clone = Arc::clone(&state);
+    let thread_limit = Arc::new(Semaphore::new(LOCAL_THREAD_LIMIT));
 
     // Poll the stream to keep the store up-to-date
     tokio::spawn(async move {
-        rf.for_each(|event| {
-            let state = Arc::clone(&state_clone);
-            async move {
-                if let Ok(event) = event {
-                    handle_resource_event(event, &state);
-                }
-            }
-        })
-        .await;
-    });
-
-    // Example: Access cached data from the reader (store)
-    Ok(())
-}
-
-pub async fn setup_dynamic_watcher(
-    client: Client,
-    api_resource: &ApiResource,
-) -> Result<(), Box<dyn Error>> {
-    let dynamic_api: Api<DynamicObject> = Api::all_with(client, api_resource);
-
-    let state = Arc::new(Mutex::new(HashMap::<String, DynamicObject>::new()));
-    let state_clone = Arc::clone(&state);
-
-    // Setup watcher without store
-    let watcher = watcher(dynamic_api, watcher::Config::default());
-
-    tokio::spawn(async move {
         watcher
-            .for_each(|event| {
-                let state = Arc::clone(&state_clone);
-                async move {
-                    if let Ok(event) = event {
-                        handle_resource_event(event, &state);
-                    }
+            .for_each(|event| async {
+                let client = hik8s_client.clone();
+                if let Ok(permit) = thread_limit.clone().acquire_owned().await {
+                    tokio::spawn(async move {
+                        match event {
+                            Ok(watcher_event) => {
+                                handle_event_and_dispatch(
+                                    watcher_event,
+                                    client,
+                                    route,
+                                    report_deleted,
+                                )
+                                .await
+                            }
+                            Err(e) => error!("Watch error, route {}: {:?}", route, e),
+                        };
+                        drop(permit);
+                    });
                 }
             })
             .await;
     });
-
     Ok(())
+}
+
+pub async fn handle_event_and_dispatch<T: Serialize>(
+    event: WatcherEvent<T>,
+    client: Hik8sClient,
+    route: &str,
+    report_deleted: bool,
+) {
+    match event {
+        WatcherEvent::Apply(resource) | WatcherEvent::InitApply(resource) => {
+            if let Err(e) = client.dispatch(resource, route).await {
+                tracing::error!("Failed to handle delete event: {}", e);
+            }
+        }
+        WatcherEvent::Init => tracing::info!("{route}(init)"),
+        WatcherEvent::InitDone => tracing::info!("{route}(initdone)"),
+        WatcherEvent::Delete(resource) => {
+            if report_deleted {
+                if let Err(e) = client.dispatch(resource, route).await {
+                    tracing::error!("Failed to handle delete event: {}", e);
+                }
+            }
+        }
+    }
 }

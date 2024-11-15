@@ -5,6 +5,7 @@ use reqwest::{multipart::Form, Client};
 use super::auth::Auth;
 use super::Hik8sClientError;
 
+#[derive(Clone)]
 pub struct Hik8sClient {
     pub client: Client,
     pub host: String,
@@ -31,6 +32,22 @@ impl Hik8sClient {
         self.client
             .post(&self.get_uri(route))
             .multipart(form)
+            .header(AUTHORIZATION, format!("Bearer {}", token))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+    pub async fn send_request(
+        &self,
+        route: &str,
+        json: &serde_json::Value,
+    ) -> Result<(), Hik8sClientError> {
+        let token = self.auth.get_auth0_token().await.unwrap();
+
+        self.client
+            .post(&self.get_uri(route))
+            .json(json)
             .header(AUTHORIZATION, format!("Bearer {}", token))
             .send()
             .await?

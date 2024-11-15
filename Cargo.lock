@@ -1320,6 +1320,7 @@ dependencies = [
  "shared",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 
