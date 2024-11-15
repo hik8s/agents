@@ -1,12 +1,7 @@
+use shared::{client::Hik8sClientError, tracing::TracingSetupError};
 use thiserror::Error;
 
-use crate::{
-    threads::{
-        process_file_events::EventThreadError,
-        read_and_send::{Hik8sClientError, ReadThreadError},
-    },
-    util::tracing::TracingSetupError,
-};
+use crate::threads::{process_file_events::EventThreadError, read_and_send::ReadThreadError};
 
 #[derive(Error, Debug)]
 pub enum LogDaemonError {

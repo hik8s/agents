@@ -1,3 +1,4 @@
+use shared::client::{create_form_data, Client};
 use std::io::Seek;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -11,7 +12,8 @@ use std::{
 };
 use tracing::{debug, error, info};
 
-use super::client::{create_form_data, Client};
+use crate::constant::HIK8S_ROUTE_LOG;
+
 use super::error::ReadThreadError;
 use super::reader::{get_reader, read_chunk};
 
@@ -77,7 +79,10 @@ pub async fn read_file_and_send_data<C: Client>(
                     let form_data = create_form_data(metadata, stream).unwrap();
 
                     // Stream data
-                    if let Err(e) = client.send_multipart_request(form_data).await {
+                    if let Err(e) = client
+                        .send_multipart_request(&HIK8S_ROUTE_LOG, form_data)
+                        .await
+                    {
                         error!("Failed to send data: {}", e);
                         continue;
                     }

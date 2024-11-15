@@ -1,20 +1,21 @@
 [package]
 edition.workspace = true
-name = "logd"
-version = "0.2.5"
+name = "shared"
+version = "0.1.0"
 
 [dependencies]
 bytes = {workspace = true}
-futures = {workspace = true}
 hyper = {workspace = true}
-inotify = {workspace = true}
 reqwest = {workspace = true}
-rstest = {workspace = true}
+reqwest-middleware = {workspace = true}
+reqwest-retry = {workspace = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
-shared = {workspace = true}
-tempfile = {workspace = true}
 thiserror = {workspace = true}
 tokio = {workspace = true}
 tokio-stream = {workspace = true}
 tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
+
+[dev-dependencies]
+dotenv = {workspace = true}

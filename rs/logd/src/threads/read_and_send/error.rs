@@ -1,9 +1,7 @@
 use std::io;
 use thiserror::Error;
 
-use crate::util::tracing::TracingSetupError;
-
-use super::client::Hik8sClientError;
+use shared::{client::Hik8sClientError, tracing::TracingSetupError};
 
 #[derive(Error, Debug)]
 pub enum ReadThreadError {

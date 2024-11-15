@@ -9,7 +9,7 @@ mod integration_tests {
 
     use crate::threads::process_file_events::{process_file_events, EventThreadError};
     use crate::util::test::test_util::{create_test_file, write_to_existing_file};
-    use crate::util::tracing::setup_tracing;
+    use shared::tracing::setup_tracing;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_process_file_events_picks_up_new_file() -> Result<(), EventThreadError> {
