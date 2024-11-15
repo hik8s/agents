@@ -1,13 +1,13 @@
 use k8s_openapi::api::core::v1::Event;
 use kube::{api::DynamicObject, Api, Client};
-use reflectord::{
+use shared::{client::Hik8sClient, tracing::setup_tracing};
+use std::error::Error;
+use watchd::{
     constant::{ROUTE_CUSTOM_RESOURCE, ROUTE_EVENT},
     customresource::{get_api_resource, list_crds},
     kubeapi::KubeApi,
     watcher::setup_watcher,
 };
-use shared::{client::Hik8sClient, tracing::setup_tracing};
-use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
