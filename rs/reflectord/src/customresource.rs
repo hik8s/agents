@@ -1,5 +1,5 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use kube::api::{ApiResource, DynamicObject, GroupVersionKind, ListParams, ObjectList};
+use kube::api::{ApiResource, GroupVersionKind, ListParams, ObjectList};
 
 use kube::{Api, Client};
 use std::error::Error;
