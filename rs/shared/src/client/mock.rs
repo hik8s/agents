@@ -14,14 +14,14 @@ impl MockHik8sClient {
 }
 
 impl Client for MockHik8sClient {
-    fn send_multipart_request(
+    async fn send_multipart_request(
         &self,
         _route: &str,
         form_data: Form,
-    ) -> impl std::future::Future<Output = Result<(), Hik8sClientError>> + Send {
+    ) -> Result<(), Hik8sClientError> {
         // received data is evalued in the test
         let mut data = self.received_data.lock().unwrap();
         data.push(form_data);
-        async { Ok(()) }
+        Ok(())
     }
 }
