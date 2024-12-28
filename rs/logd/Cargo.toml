@@ -5,6 +5,7 @@ version = "0.2.6"
 
 [dependencies]
 bytes = {workspace = true}
+dotenv = {workspace = true}
 futures = {workspace = true}
 hyper = {workspace = true}
 inotify = {workspace = true}
@@ -18,3 +19,6 @@ thiserror = {workspace = true}
 tokio = {workspace = true}
 tokio-stream = {workspace = true}
 tracing = {workspace = true}
+
+[dev-dependencies]
+httpmock = {workspace = true}

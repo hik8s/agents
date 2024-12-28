@@ -42,7 +42,7 @@ async fn main() -> Result<(), LogDaemonError> {
     }));
 
     // Read and send thread
-    let client = Hik8sClient::new()?;
+    let client = Hik8sClient::new(false)?;
     let termination_signal_clone = Arc::clone(&termination_signal);
     threads.push(tokio::spawn(async move {
         read_file_and_send_data(file_event_receiver, client, termination_signal_clone).await?;

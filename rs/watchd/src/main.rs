@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let kube_client = Client::try_default().await?;
 
     // Create Hik8sClient
-    let hik8s_client = Hik8sClient::new().unwrap();
+    let hik8s_client = Hik8sClient::new(false).unwrap();
 
     // Setup Event watcher
     let event_api = Api::<Event>::all(kube_client.clone());
