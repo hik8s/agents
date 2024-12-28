@@ -8,26 +8,38 @@ use super::Hik8sClientError;
 
 #[derive(Clone)]
 pub struct Hik8sClient {
-    pub client: ClientWithMiddleware,
-    pub host: String,
+    pub client: Client,
+    pub client_with_middleware: ClientWithMiddleware,
+    insecure: bool,
+    host: String,
+    port: String,
     auth: Auth,
 }
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
 impl Hik8sClient {
-    pub fn new() -> Result<Self, Hik8sClientError> {
+    pub fn new(insecure: bool) -> Result<Self, Hik8sClientError> {
         let host = get_env_var("HIK8S_HOST")?;
+        let port = get_env_var("HIK8S_PORT")?;
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(10);
         let client = Client::builder().use_rustls_tls().build()?;
-        let client = ClientBuilder::new(client)
+        let client_with_middleware = ClientBuilder::new(client.clone())
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build();
         let auth = Auth::new()?;
-        Ok(Self { client, host, auth })
+        Ok(Self {
+            client,
+            client_with_middleware,
+            insecure,
+            host,
+            port,
+            auth,
+        })
     }
     pub fn get_uri(&self, route: &str) -> String {
-        format!("https://{}/{}", self.host, route)
+        let protocol = if self.insecure { "http" } else { "https" };
+        format!("{}://{}:{}/{route}", protocol, self.host, self.port)
     }
     pub async fn send_multipart_request(
         &self,
@@ -37,7 +49,7 @@ impl Hik8sClient {
         let token = self.auth.get_auth0_token().await.unwrap();
 
         self.client
-            .post(&self.get_uri(route))
+            .post(self.get_uri(route))
             .multipart(form)
             .header(AUTHORIZATION, format!("Bearer {}", token))
             .send()
@@ -52,8 +64,8 @@ impl Hik8sClient {
     ) -> Result<(), Hik8sClientError> {
         let token = self.auth.get_auth0_token().await.unwrap();
 
-        self.client
-            .post(&self.get_uri(route))
+        self.client_with_middleware
+            .post(self.get_uri(route))
             .json(json)
             .header(AUTHORIZATION, format!("Bearer {}", token))
             .send()

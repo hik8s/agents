@@ -1,6 +1,7 @@
 use inotify::EventMask;
 use std::collections::HashSet;
 use std::io::ErrorKind;
+use std::time::Duration;
 use tracing::info;
 
 use std::path::Path;
@@ -30,6 +31,8 @@ pub fn process_file_events(
 
     loop {
         if termination_signal.load(Ordering::SeqCst) {
+            // this sleep allows receiver to close the channel
+            std::thread::sleep(Duration::from_millis(500));
             break;
         }
         let events: inotify::Events<'_> = match listener.inotify.read_events(&mut buffer) {

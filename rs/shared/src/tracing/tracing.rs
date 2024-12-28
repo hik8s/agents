@@ -15,7 +15,12 @@ pub fn setup_tracing() -> Result<(), TracingSetupError> {
         let subscriber = FmtSubscriber::builder()
             .with_env_filter(filter)
             .fmt_fields(fmt::format::DefaultFields::new())
-            .event_format(fmt::format().compact().with_line_number(true))
+            .event_format(
+                fmt::format()
+                    .compact()
+                    .with_line_number(true)
+                    .with_thread_ids(true),
+            )
             .finish();
 
         if let Err(e) = tracing::subscriber::set_global_default(subscriber) {

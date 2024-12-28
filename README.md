@@ -18,6 +18,7 @@ The code in this program is specific to Linux and requires a development contain
 2. Run a container
 
     ```bash
+    IMAGE_NAME="hik8s/agents-dev-container"
     WORKDIR=$(grep 'WORKDIR' Dockerfile.dev | awk '{print $2}') && echo $WORKDIR
 
     docker run -it \

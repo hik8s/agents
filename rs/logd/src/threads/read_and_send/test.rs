@@ -2,10 +2,11 @@
 mod integration_tests {
     use shared::client::MockHik8sClient;
     use std::collections::HashSet;
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc, Mutex};
+    use std::time::Duration;
     use tempfile::tempdir;
-    use tracing::info;
+    use tracing::debug;
 
     use crate::threads::read_and_send::{read_file_and_send_data, ReadThreadError};
     use crate::util::test::test_util::create_test_file;
@@ -58,10 +59,11 @@ mod integration_tests {
         sender.send(paths).unwrap();
 
         // Wait for the thread to process the files
-        drop(sender);
+        std::thread::sleep(Duration::from_millis(100));
+        termination_signal.store(true, Ordering::SeqCst);
         handle.await.unwrap();
 
-        info!("Threads finished");
+        debug!("Threads finished");
         // Verify that the files were read and data was sent
         let data: std::sync::MutexGuard<'_, Vec<reqwest::multipart::Form>> =
             received_data.lock().unwrap();
