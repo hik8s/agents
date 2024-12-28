@@ -1,7 +1,9 @@
 use shared::client::{create_form_data, Client};
 use std::io::Seek;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use std::path::PathBuf;
@@ -28,7 +30,7 @@ pub async fn read_file_and_send_data<C: Client>(
         if termination_signal.load(Ordering::SeqCst) {
             break;
         }
-        match event_receiver.recv() {
+        match event_receiver.recv_timeout(Duration::from_millis(500)) {
             Ok(paths) => {
                 for path in paths {
                     // Read file
@@ -80,7 +82,7 @@ pub async fn read_file_and_send_data<C: Client>(
 
                     // Stream data
                     if let Err(e) = client
-                        .send_multipart_request(&HIK8S_ROUTE_LOG, form_data)
+                        .send_multipart_request(HIK8S_ROUTE_LOG, form_data)
                         .await
                     {
                         error!("Failed to send data: {}", e);
@@ -88,9 +90,11 @@ pub async fn read_file_and_send_data<C: Client>(
                     }
                 }
             }
-            Err(e) => {
-                tracing::warn!("Error receiving paths: {}", e);
-                break;
+            Err(RecvTimeoutError::Timeout) => {
+                continue;
+            }
+            Err(e @ RecvTimeoutError::Disconnected) => {
+                return Err(e.into());
             }
         }
     }

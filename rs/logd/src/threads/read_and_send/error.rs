@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, sync::mpsc::RecvTimeoutError};
 use thiserror::Error;
 
 use shared::{client::Hik8sClientError, tracing::TracingSetupError};
@@ -11,4 +11,6 @@ pub enum ReadThreadError {
     Hik8sClient(#[from] Hik8sClientError),
     #[error("Tracing setup error: {0}")]
     TracingSetup(#[from] TracingSetupError),
+    #[error("Channel receive timeout: {0}")]
+    RecvTimeout(#[from] RecvTimeoutError),
 }

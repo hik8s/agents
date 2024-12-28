@@ -1,79 +1,106 @@
 #[cfg(test)]
 mod integration_tests {
-    use shared::client::MockHik8sClient;
+    use shared::client::Hik8sClient;
+    use std::env;
     use std::fs::create_dir;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{mpsc, Arc, Mutex};
-    use std::time::Duration;
+    use std::sync::{mpsc, Arc};
+    use std::time::{Duration, Instant};
     use tempfile::tempdir;
     use tokio::task::JoinHandle;
-    use tracing::info;
+    use tracing::debug;
 
+    use crate::constant::HIK8S_ROUTE_LOG;
     use crate::error::LogDaemonError;
     use crate::threads::process_file_events::process_file_events;
     use crate::threads::read_and_send::read_file_and_send_data;
     use crate::util::test::test_util::create_test_file;
     use shared::tracing::setup_tracing;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_main_with_mock_client() -> Result<(), LogDaemonError> {
         setup_tracing()?;
+        // Track threads
+        let mut threads: Vec<JoinHandle<Result<(), LogDaemonError>>> = Vec::new();
+
+        // Start mock server
+        let server = MockServer::start_async().await;
+        let server_port = server.port().to_string();
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .path(format!("/{HIK8S_ROUTE_LOG}"))
+                    .is_true(|req| {
+                        req.body()
+                            .to_maybe_lossy_str()
+                            .contains("This is the first line of")
+                    });
+                then.status(200);
+            })
+            .await;
+
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let temp_path = temp_dir.path().to_path_buf();
 
-        // Track threads
-        let mut threads: Vec<JoinHandle<Result<(), LogDaemonError>>> = Vec::new();
-
-        let sig_term1 = Arc::new(AtomicBool::new(false));
-        let sig_term1_clone = Arc::clone(&sig_term1);
+        let sig_term = Arc::new(AtomicBool::new(false));
+        let sig_term_clone = sig_term.clone();
 
         // File events thread
         let temp_path_clone = temp_path.clone();
         let (file_event_sender, file_event_receiver) = mpsc::channel();
         threads.push(tokio::spawn(async move {
-            process_file_events(&temp_path_clone, file_event_sender, sig_term1_clone)?;
-            info!("File events thread finished");
+            process_file_events(&temp_path_clone, file_event_sender, sig_term_clone)?;
+            debug!("File events thread finished");
             Ok(())
         }));
 
         // Mock client
-        let received_data = Arc::new(Mutex::new(Vec::new()));
-        let mock_client = MockHik8sClient::new(Arc::clone(&received_data));
+        dotenv::dotenv().ok();
+        env::set_var("HIK8S_PORT", server_port);
+        let client = Hik8sClient::new(true)?;
 
         // Read and send thread
-        let sig_term2 = Arc::new(AtomicBool::new(false));
-        let sig_term2_clone = Arc::clone(&sig_term2);
+        let sig_term_clone = sig_term.clone();
         threads.push(tokio::spawn(async move {
-            read_file_and_send_data(file_event_receiver, mock_client, sig_term2_clone).await?;
-            info!("Read and send thread finished");
+            read_file_and_send_data(file_event_receiver, client, sig_term_clone).await?;
+            debug!("Read and send thread finished");
             Ok(())
         }));
 
-        // tokio::time::sleep(Duration::from_millis(100)).await;
-
         let subdir_path = temp_path.join("subdir");
-        create_dir(&subdir_path)?;
-        create_test_file(&temp_path, "file1")?;
-        create_test_file(&subdir_path, "file2")?;
-        create_test_file(&temp_path, "file3")?;
+        create_dir(&subdir_path).unwrap();
+        create_test_file(&temp_path, "file1").unwrap();
+        create_test_file(&subdir_path, "file2").unwrap();
+        create_test_file(&temp_path, "file3").unwrap();
+        let expected_hits = 3;
 
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        info!("Terminating threads..");
-        sig_term1.store(true, Ordering::SeqCst);
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        sig_term2.store(true, Ordering::SeqCst);
+        let start_time = Instant::now();
+        let timeout_duration = Duration::from_secs(1);
+        while mock.calls() < expected_hits {
+            if start_time.elapsed() >= timeout_duration {
+                sig_term.store(true, Ordering::SeqCst);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        assert_eq!(
+            mock.calls(),
+            expected_hits,
+            "Not all requests were received"
+        );
 
         // Handle thread errors
+        debug!("Terminating threads..");
+        sig_term.store(true, Ordering::SeqCst);
         for thread in threads {
             thread.await??;
         }
-        info!("Threads finished");
-
-        let data: std::sync::MutexGuard<'_, Vec<reqwest::multipart::Form>> =
-            received_data.lock().unwrap();
-        assert!(!data.is_empty(), "No data received by the mock client");
-        assert_eq!(data.len(), 3);
+        debug!("Threads finished");
 
         Ok(())
     }
