@@ -73,13 +73,4 @@ impl Hik8sClient {
             .error_for_status()?;
         Ok(())
     }
-
-    pub async fn dispatch<T: Serialize>(
-        &self,
-        resource: T,
-        route: &str,
-    ) -> Result<(), Hik8sClientError> {
-        let resource_json = serde_json::to_value(resource)?;
-        self.send_request(route, &resource_json).await
-    }
 }
