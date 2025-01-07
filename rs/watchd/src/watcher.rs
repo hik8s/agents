@@ -1,5 +1,6 @@
 use futures::StreamExt;
 
+use k8s_openapi::chrono;
 use kube::runtime::watcher::{watcher, Event as WatcherEvent};
 use kube::Api;
 use serde::Serialize;
@@ -12,14 +13,14 @@ use tokio::sync::Semaphore;
 use crate::constant::LOCAL_THREAD_LIMIT;
 use tracing::error;
 
-pub async fn setup_watcher<T: kube::Resource>(
+pub async fn setup_watcher<T>(
     api: Api<T>,
     hik8s_client: Hik8sClient,
     route: &'static str,
     report_deleted: bool,
 ) -> Result<(), Box<dyn Error>>
 where
-    T: Debug + Clone + Send + Sync + 'static,
+    T: kube::Resource + Debug + Clone + Send + Sync + 'static,
     T: for<'kubeapi> serde::Deserialize<'kubeapi> + Serialize,
 {
     let watcher = watcher(api, Default::default());
@@ -61,19 +62,38 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
     report_deleted: bool,
 ) {
     match event {
-        WatcherEvent::Apply(resource) | WatcherEvent::InitApply(resource) => {
-            if let Err(e) = client.dispatch(resource, route).await {
-                tracing::error!("Failed to handle delete event: {}", e);
+        WatcherEvent::Apply(resource) => {
+            let json = wrap_kubeapi_data(resource, "apply");
+            if let Err(e) = client.send_request(route, &json).await {
+                tracing::error!("Failed to handle apply event: {}", e);
             }
+            tracing::info!("{route}(Apply)");
+        }
+        WatcherEvent::InitApply(resource) => {
+            let json = wrap_kubeapi_data(resource, "initapply");
+            if let Err(e) = client.send_request(route, &json).await {
+                tracing::error!("Failed to handle init-apply event: {}", e);
+            }
+            tracing::info!("{route}(InitApply)");
         }
         WatcherEvent::Init => tracing::info!("{route}(init)"),
         WatcherEvent::InitDone => tracing::info!("{route}(initdone)"),
         WatcherEvent::Delete(resource) => {
             if report_deleted {
-                if let Err(e) = client.dispatch(resource, route).await {
+                let json = wrap_kubeapi_data(resource, "delete");
+                if let Err(e) = client.send_request(route, &json).await {
                     tracing::error!("Failed to handle delete event: {}", e);
                 }
             }
+            tracing::info!("{route}(Delete)");
         }
     }
+}
+
+fn wrap_kubeapi_data<T: Serialize>(resource: T, event_type: &str) -> serde_json::Value {
+    serde_json::json!({
+        "timestamp": chrono::Utc::now().timestamp(),
+        "event_type": event_type,
+        "json": resource,
+    })
 }
