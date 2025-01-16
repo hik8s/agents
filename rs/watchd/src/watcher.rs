@@ -44,12 +44,19 @@ where
                                 )
                                 .await
                             }
-                            Err(e) => match e {
+                            Err(err) => match err {
                                 WatcherError::WatchError(err_res) => match err_res.code {
                                     403 => {}
                                     _ => error!("Watcher error: {:?}", err_res),
                                 },
-                                _ => error!("Watcher error: {:?}", e),
+                                WatcherError::InitialListFailed(kube_error) => match kube_error {
+                                    kube::Error::Api(err_res) => match err_res.code {
+                                        403 => {}
+                                        _ => error!("Watcher error: {:?}", err_res),
+                                    },
+                                    err => error!("Watcher error: {:?}", err),
+                                },
+                                _ => error!("Watcher error: {:?}", err),
                             },
                         };
                         drop(permit);
