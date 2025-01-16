@@ -2758,7 +2758,7 @@ dependencies = [
 
 [[package]]
 name = "watchd"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "futures",
  "k8s-openapi",
