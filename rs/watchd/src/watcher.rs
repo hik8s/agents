@@ -1,6 +1,8 @@
 use futures::StreamExt;
 
+use crate::constant::LOCAL_THREAD_LIMIT;
 use k8s_openapi::chrono;
+use kube::runtime::watcher::Error as WatcherError;
 use kube::runtime::watcher::{watcher, Event as WatcherEvent};
 use kube::Api;
 use serde::Serialize;
@@ -9,8 +11,6 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-
-use crate::constant::LOCAL_THREAD_LIMIT;
 use tracing::error;
 
 pub async fn setup_watcher<T>(
@@ -44,7 +44,13 @@ where
                                 )
                                 .await
                             }
-                            Err(e) => error!("Watch error, route {}: {:?}", route, e),
+                            Err(e) => match e {
+                                WatcherError::WatchError(err_res) => match err_res.code {
+                                    403 => {}
+                                    _ => error!("Watcher error: {:?}", err_res),
+                                },
+                                _ => error!("Watcher error: {:?}", e),
+                            },
                         };
                         drop(permit);
                     });
