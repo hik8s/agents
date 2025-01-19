@@ -2,6 +2,7 @@ use k8s_openapi::api::core::v1::Event;
 use kube::{api::DynamicObject, Api, Client};
 use shared::{client::Hik8sClient, tracing::setup_tracing};
 use std::error::Error;
+use tracing::warn;
 use watchd::{
     constant::{ROUTE_CUSTOM_RESOURCE, ROUTE_EVENT},
     customresource::{get_api_resource, list_crds, verify_access},
@@ -29,6 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Setup CustomResource watcher
+    let mut failed_cr_names = vec![];
     for cr in list_crds(kube_client.clone(), true).await? {
         if let Some(api_resource) = get_api_resource(&cr) {
             let dynamic_api = Api::<DynamicObject>::all_with(kube_client.clone(), &api_resource);
@@ -40,8 +42,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     true,
                 )
                 .await?;
+            } else {
+                let resource_name = format!("{}/{}", api_resource.group, api_resource.plural);
+                failed_cr_names.push(resource_name);
             };
         }
+    }
+
+    if !failed_cr_names.is_empty() {
+        warn!(
+            "Failed to setup watchers for CustomResources: {:?}",
+            failed_cr_names.join(", ")
+        );
     }
 
     loop {
