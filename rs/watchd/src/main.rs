@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup Event watcher
     let event_api = Api::<Event>::all(kube_client.clone());
-    setup_watcher(event_api, hik8s_client.clone(), ROUTE_EVENT, false).await?;
+    setup_watcher("Event", event_api, hik8s_client.clone(), ROUTE_EVENT, false).await?;
 
     // Setup Resource watcher
     for resource in KubeApi::new_all(&kube_client) {
@@ -34,8 +34,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for cr in list_crds(kube_client.clone(), true).await? {
         if let Some(api_resource) = get_api_resource(&cr) {
             let dynamic_api = Api::<DynamicObject>::all_with(kube_client.clone(), &api_resource);
+            let name_with_group = format!("{}/{}", api_resource.group, api_resource.plural);
             if (verify_access(&dynamic_api).await).is_ok() {
                 setup_watcher(
+                    &name_with_group,
                     dynamic_api,
                     hik8s_client.clone(),
                     ROUTE_CUSTOM_RESOURCE,
@@ -43,8 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             } else {
-                let resource_name = format!("{}/{}", api_resource.group, api_resource.plural);
-                failed_cr_names.push(resource_name);
+                failed_cr_names.push(name_with_group);
             };
         }
     }
