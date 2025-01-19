@@ -1,5 +1,5 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use kube::api::{ApiResource, GroupVersionKind, ListParams, ObjectList};
+use kube::api::{ApiResource, DynamicObject, GroupVersionKind, ListParams, ObjectList};
 
 use kube::{Api, Client};
 use std::error::Error;
@@ -36,4 +36,11 @@ pub async fn list_crds(
             .sort_by(|a, b| a.spec.group.cmp(&b.spec.group));
     }
     Ok(crd_list)
+}
+
+pub async fn verify_access(api: &Api<DynamicObject>) -> Result<(), Box<dyn std::error::Error>> {
+    match api.list(&ListParams::default()).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err("No resources found".into()),
+    }
 }
