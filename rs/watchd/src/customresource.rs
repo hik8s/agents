@@ -4,6 +4,8 @@ use kube::api::{ApiResource, DynamicObject, GroupVersionKind, ListParams, Object
 use kube::{Api, Client};
 use std::error::Error;
 
+use crate::error::WatchDaemonError;
+
 pub fn get_api_resource(crd: &CustomResourceDefinition) -> Option<ApiResource> {
     let group = &crd.spec.group;
 
@@ -38,9 +40,9 @@ pub async fn list_crds(
     Ok(crd_list)
 }
 
-pub async fn verify_access(api: &Api<DynamicObject>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn verify_access(api: &Api<DynamicObject>) -> Result<(), WatchDaemonError> {
     match api.list(&ListParams::default()).await {
         Ok(_) => Ok(()),
-        Err(e) => Err("No resources found".into()),
+        Err(e) => Err(e.into()),
     }
 }
