@@ -11,7 +11,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tracing::error;
+use tracing::{error, warn};
 
 pub async fn setup_watcher<T>(
     name: &str,
@@ -40,6 +40,7 @@ where
                         match event {
                             Ok(watcher_event) => {
                                 handle_event_and_dispatch(
+                                    &name,
                                     watcher_event,
                                     client,
                                     route,
@@ -72,6 +73,7 @@ where
 }
 
 pub async fn handle_event_and_dispatch<T: Serialize>(
+    name: &str,
     event: WatcherEvent<T>,
     client: Hik8sClient,
     route: &str,
@@ -81,14 +83,14 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
         WatcherEvent::Apply(resource) => {
             let json = wrap_kubeapi_data(resource, "apply");
             if let Err(e) = client.send_request(route, &json).await {
-                tracing::error!("Failed to handle apply event: {}", e);
+                warn!("Failed to handle apply event for resource {name}: {e}");
             }
             tracing::info!("{route}(Apply)");
         }
         WatcherEvent::InitApply(resource) => {
             let json = wrap_kubeapi_data(resource, "initapply");
             if let Err(e) = client.send_request(route, &json).await {
-                tracing::error!("Failed to handle init-apply event: {}", e);
+                warn!("Failed to handle init-apply event for resource {name}: {e}");
             }
             tracing::info!("{route}(InitApply)");
         }
@@ -98,7 +100,7 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
             if report_deleted {
                 let json = wrap_kubeapi_data(resource, "delete");
                 if let Err(e) = client.send_request(route, &json).await {
-                    tracing::error!("Failed to handle delete event: {}", e);
+                    warn!("Failed to handle delete event for resource {name}: {e}");
                 }
             }
             tracing::info!("{route}(Delete)");
