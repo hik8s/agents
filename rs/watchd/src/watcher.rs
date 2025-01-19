@@ -14,6 +14,7 @@ use tokio::sync::Semaphore;
 use tracing::error;
 
 pub async fn setup_watcher<T>(
+    name: &str,
     api: Api<T>,
     hik8s_client: Hik8sClient,
     route: &'static str,
@@ -28,11 +29,13 @@ where
     let thread_limit = Arc::new(Semaphore::new(LOCAL_THREAD_LIMIT));
 
     // Poll the stream to keep the store up-to-date
+    let name = name.to_owned();
     tokio::spawn(async move {
         watcher
             .for_each(|event| async {
                 let client = hik8s_client.clone();
                 if let Ok(permit) = thread_limit.clone().acquire_owned().await {
+                    let name = name.clone();
                     tokio::spawn(async move {
                         match event {
                             Ok(watcher_event) => {
@@ -45,18 +48,18 @@ where
                                 .await
                             }
                             Err(err) => match err {
-                                WatcherError::WatchError(err_res) => match err_res.code {
+                                WatcherError::WatchError(res) => match res.code {
                                     403 => {}
-                                    _ => error!("Watcher error: {:?}", err_res),
+                                    _ => error!("Error: {} watcher: {:?}", name, res),
                                 },
                                 WatcherError::InitialListFailed(kube_error) => match kube_error {
-                                    kube::Error::Api(err_res) => match err_res.code {
+                                    kube::Error::Api(res) => match res.code {
                                         403 => {}
-                                        _ => error!("Watcher error: {:?}", err_res),
+                                        _ => error!("Error: {} watcher: {:?}", name, res),
                                     },
-                                    err => error!("Watcher error: {:?}", err),
+                                    err => error!("Error: {} watcher: {:?}", name, err),
                                 },
-                                _ => error!("Watcher error: {:?}", err),
+                                _ => error!("Error: {} watcher: {:?}", name, err),
                             },
                         };
                         drop(permit);
