@@ -1,6 +1,6 @@
 use k8s_openapi::api::{
     apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
-    core::v1::{Namespace, Node, Pod, Service, ServiceAccount},
+    core::v1::{Event, Namespace, Node, Pod, Service, ServiceAccount},
     networking::v1::Ingress,
     rbac::v1::{ClusterRole, ClusterRoleBinding, Role},
     storage::v1::StorageClass,
@@ -9,10 +9,15 @@ use kube::Api;
 use shared::client::Hik8sClient;
 use std::fmt;
 
-use crate::{constant::ROUTE_RESOURCE, error::WatchDaemonError, watcher::setup_watcher};
+use crate::{
+    constant::{ROUTE_EVENT, ROUTE_RESOURCE},
+    error::WatchDaemonError,
+    watcher::setup_watcher,
+};
 
 #[derive(Clone)]
 pub enum KubeApi {
+    Event(Api<Event>),
     Deployment(Api<Deployment>),
     DaemonSet(Api<DaemonSet>),
     ReplicaSet(Api<ReplicaSet>),
@@ -32,6 +37,7 @@ pub enum KubeApi {
 impl fmt::Display for KubeApi {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
+            Self::Event(_) => "Event",
             Self::Deployment(_) => "Deployment",
             Self::DaemonSet(_) => "DaemonSet",
             Self::ReplicaSet(_) => "ReplicaSet",
@@ -54,6 +60,7 @@ impl fmt::Display for KubeApi {
 impl KubeApi {
     pub fn new_all(client: &kube::Client) -> Vec<Self> {
         vec![
+            Self::Event(Api::all(client.clone())),
             Self::Deployment(Api::all(client.clone())),
             Self::Pod(Api::all(client.clone())),
             Self::DaemonSet(Api::all(client.clone())),
@@ -70,11 +77,18 @@ impl KubeApi {
             Self::StorageClass(Api::all(client.clone())),
         ]
     }
+    pub const fn route(&self) -> &'static str {
+        match self {
+            Self::Event(_) => ROUTE_EVENT,
+            _ => ROUTE_RESOURCE,
+        }
+    }
 
     pub async fn setup_watcher(self, client: Hik8sClient) -> Result<(), WatchDaemonError> {
-        let route = ROUTE_RESOURCE;
+        let route = self.route();
         let name = self.to_string();
         match self {
+            Self::Event(api) => setup_watcher(name, api, client, route, true).await,
             Self::Deployment(api) => setup_watcher(name, api, client, route, true).await,
             Self::DaemonSet(api) => setup_watcher(name, api, client, route, true).await,
             Self::ReplicaSet(api) => setup_watcher(name, api, client, route, true).await,

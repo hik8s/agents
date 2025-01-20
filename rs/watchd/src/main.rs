@@ -1,10 +1,9 @@
-use k8s_openapi::api::core::v1::Event;
 use kube::{api::DynamicObject, Api, Client};
 use shared::{client::Hik8sClient, tracing::setup_tracing};
 use std::error::Error;
 use tracing::warn;
 use watchd::{
-    constant::{ROUTE_CUSTOM_RESOURCE, ROUTE_EVENT},
+    constant::ROUTE_CUSTOM_RESOURCE,
     customresource::{get_api_resource, list_crds},
     kubeapi::KubeApi,
     watcher::setup_watcher,
@@ -14,32 +13,13 @@ use watchd::{
 async fn main() -> Result<(), Box<dyn Error>> {
     setup_tracing()?;
 
-    // Create kube apiserver client
-    let kube_client = Client::try_default().await?;
-
-    // Create Hik8sClient
+    // Create clients
+    let kubeapi_client = Client::try_default().await?;
     let hik8s_client = Hik8sClient::new(false).unwrap();
 
-    // Setup Event watcher
-    let event_api = Api::<Event>::all(kube_client.clone());
-    let name = "Event".to_string();
-    setup_watcher(
-        name.clone(),
-        event_api,
-        hik8s_client.clone(),
-        ROUTE_EVENT,
-        false,
-    )
-    .await
-    .inspect_err(|_| {
-        warn!("{}", format_rbac_error(name));
-    })
-    .ok();
-
-    // Setup Resource watcher
-
+    // Setup resource watcher
     let mut failed_resource_names = vec![];
-    for resource in KubeApi::new_all(&kube_client) {
+    for resource in KubeApi::new_all(&kubeapi_client) {
         let name = resource.to_string();
         resource
             .setup_watcher(hik8s_client.clone())
@@ -51,11 +31,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("{}", format_rbac_error(failed_resource_names.join(", ")));
     }
 
-    // Setup CustomResource watcher
+    // Setup custom resource watcher
     let mut failed_cr_names = vec![];
-    for cr in list_crds(kube_client.clone(), true).await? {
+    for cr in list_crds(kubeapi_client.clone(), true).await? {
         if let Some(api_resource) = get_api_resource(&cr) {
-            let dynamic_api = Api::<DynamicObject>::all_with(kube_client.clone(), &api_resource);
+            let dynamic_api = Api::<DynamicObject>::all_with(kubeapi_client.clone(), &api_resource);
             let name_with_group = format!("{}/{}", api_resource.group, api_resource.plural);
             setup_watcher(
                 name_with_group.clone(),
