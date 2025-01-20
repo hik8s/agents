@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use k8s_openapi::api::{
     apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
     core::v1::{Namespace, Node, Pod, Service, ServiceAccount},
@@ -9,8 +7,9 @@ use k8s_openapi::api::{
 };
 use kube::Api;
 use shared::client::Hik8sClient;
+use std::fmt;
 
-use crate::{constant::ROUTE_RESOURCE, watcher::setup_watcher};
+use crate::{constant::ROUTE_RESOURCE, error::WatchDaemonError, watcher::setup_watcher};
 
 #[derive(Clone)]
 pub enum KubeApi {
@@ -28,6 +27,28 @@ pub enum KubeApi {
     ClusterRole(Api<ClusterRole>),
     ClusterRoleBinding(Api<ClusterRoleBinding>),
     StorageClass(Api<StorageClass>),
+}
+
+impl fmt::Display for KubeApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Deployment(_) => "Deployment",
+            Self::DaemonSet(_) => "DaemonSet",
+            Self::ReplicaSet(_) => "ReplicaSet",
+            Self::StatefulSet(_) => "StatefulSet",
+            Self::Pod(_) => "Pod",
+            Self::Service(_) => "Service",
+            Self::Namespace(_) => "Namespace",
+            Self::Node(_) => "Node",
+            Self::Ingress(_) => "Ingress",
+            Self::ServiceAccount(_) => "ServiceAccount",
+            Self::Role(_) => "Role",
+            Self::ClusterRole(_) => "ClusterRole",
+            Self::ClusterRoleBinding(_) => "ClusterRoleBinding",
+            Self::StorageClass(_) => "StorageClass",
+        };
+        write!(f, "{}", name)
+    }
 }
 
 impl KubeApi {
@@ -50,29 +71,24 @@ impl KubeApi {
         ]
     }
 
-    pub async fn setup_watcher(self, client: Hik8sClient) -> Result<(), Box<dyn Error>> {
+    pub async fn setup_watcher(self, client: Hik8sClient) -> Result<(), WatchDaemonError> {
         let route = ROUTE_RESOURCE;
+        let name = self.to_string();
         match self {
-            Self::Deployment(api) => setup_watcher("Deployment", api, client, route, true).await,
-            Self::DaemonSet(api) => setup_watcher("Daemonset", api, client, route, true).await,
-            Self::ReplicaSet(api) => setup_watcher("ReplicaSet", api, client, route, true).await,
-            Self::StatefulSet(api) => setup_watcher("StatefulSet", api, client, route, true).await,
-            Self::Pod(api) => setup_watcher("Pod", api, client, route, true).await,
-            Self::Service(api) => setup_watcher("Service", api, client, route, true).await,
-            Self::Namespace(api) => setup_watcher("Namespace", api, client, route, true).await,
-            Self::Node(api) => setup_watcher("Node", api, client, route, true).await,
-            Self::Ingress(api) => setup_watcher("Ingress", api, client, route, true).await,
-            Self::ServiceAccount(api) => {
-                setup_watcher("ServiceAccount", api, client, route, true).await
-            }
-            Self::Role(api) => setup_watcher("Role", api, client, route, true).await,
-            Self::ClusterRole(api) => setup_watcher("ClusterRole", api, client, route, true).await,
-            Self::ClusterRoleBinding(api) => {
-                setup_watcher("ClusterRoleBinding", api, client, route, true).await
-            }
-            Self::StorageClass(api) => {
-                setup_watcher("StorageClass", api, client, route, true).await
-            }
+            Self::Deployment(api) => setup_watcher(name, api, client, route, true).await,
+            Self::DaemonSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ReplicaSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::StatefulSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Pod(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Service(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Namespace(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Node(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Ingress(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ServiceAccount(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Role(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ClusterRole(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ClusterRoleBinding(api) => setup_watcher(name, api, client, route, true).await,
+            Self::StorageClass(api) => setup_watcher(name, api, client, route, true).await,
         }
     }
 }
