@@ -11,7 +11,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 pub async fn setup_watcher<T>(
     name: &str,
@@ -83,27 +83,27 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
         WatcherEvent::Apply(resource) => {
             let json = wrap_kubeapi_data(resource, "apply");
             if let Err(e) = client.send_request(route, &json).await {
-                warn!("Failed to handle apply event for resource {name}: {e}");
+                error!("Failed to handle apply event for resource {name}: {e}");
             }
-            info!("{route}(Apply): {name}");
+            debug!("{route}(Apply): {name}");
         }
         WatcherEvent::InitApply(resource) => {
             let json = wrap_kubeapi_data(resource, "initapply");
             if let Err(e) = client.send_request(route, &json).await {
-                warn!("Failed to handle init-apply event for resource {name}: {e}");
+                error!("Failed to handle init-apply event for resource {name}: {e}");
             }
             debug!("{route}(InitApply): {name}");
         }
-        WatcherEvent::Init => tracing::info!("{route}(init)"),
-        WatcherEvent::InitDone => tracing::info!("{route}(initdone)"),
+        WatcherEvent::Init => debug!("{route}(init)"),
+        WatcherEvent::InitDone => debug!("{route}(initdone)"),
         WatcherEvent::Delete(resource) => {
             if report_deleted {
                 let json = wrap_kubeapi_data(resource, "delete");
                 if let Err(e) = client.send_request(route, &json).await {
-                    warn!("Failed to handle delete event for resource {name}: {e}");
+                    error!("Failed to handle delete event for resource {name}: {e}");
                 }
             }
-            info!("{route}(Delete): {name}");
+            debug!("{route}(Delete): {name}");
         }
     }
 }
