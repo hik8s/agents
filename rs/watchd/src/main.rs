@@ -35,7 +35,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         if let Some(api_resource) = get_api_resource(&cr) {
             let dynamic_api = Api::<DynamicObject>::all_with(kube_client.clone(), &api_resource);
             let name_with_group = format!("{}/{}", api_resource.group, api_resource.plural);
-            if (verify_access(&dynamic_api).await).is_ok() {
                 setup_watcher(
                     &name_with_group,
                     dynamic_api,
@@ -43,10 +42,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     ROUTE_CUSTOM_RESOURCE,
                     true,
                 )
-                .await?;
-            } else {
+            .await
+            .inspect_err(|_| {
                 failed_cr_names.push(name_with_group);
-            };
+            })
+            .ok();
         }
     }
 

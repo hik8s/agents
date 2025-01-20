@@ -1,35 +1,42 @@
 use futures::StreamExt;
+use kube::api::ListParams;
 
 use crate::constant::LOCAL_THREAD_LIMIT;
+use crate::error::WatchDaemonError;
 use k8s_openapi::chrono;
 use kube::runtime::watcher::Error as WatcherError;
 use kube::runtime::watcher::{watcher, Event as WatcherEvent};
 use kube::Api;
 use serde::Serialize;
 use shared::client::Hik8sClient;
-use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, error};
 
 pub async fn setup_watcher<T>(
-    name: &str,
+    name: String,
     api: Api<T>,
     hik8s_client: Hik8sClient,
     route: &'static str,
     report_deleted: bool,
-) -> Result<(), Box<dyn Error>>
+) -> Result<(), WatchDaemonError>
 where
     T: kube::Resource + Debug + Clone + Send + Sync + 'static,
     T: for<'kubeapi> serde::Deserialize<'kubeapi> + Serialize,
 {
+    // Verify access to the API
+    match api.list(&ListParams::default()).await {
+        Ok(_) => {}
+        Err(e) => return Err(e.into()),
+    }
+    api.list(&ListParams::default()).await?;
+
     let watcher = watcher(api, Default::default());
 
     let thread_limit = Arc::new(Semaphore::new(LOCAL_THREAD_LIMIT));
 
     // Poll the stream to keep the store up-to-date
-    let name = name.to_owned();
     tokio::spawn(async move {
         watcher
             .for_each(|event| async {
