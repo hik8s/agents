@@ -1,4 +1,5 @@
 use std::{env::var, sync::Once};
+use tracing_subscriber::fmt::time::UtcTime;
 use tracing_subscriber::{fmt, EnvFilter, FmtSubscriber};
 
 use super::error::TracingSetupError;
@@ -14,6 +15,8 @@ pub fn setup_tracing() -> Result<(), TracingSetupError> {
 
         let subscriber = FmtSubscriber::builder()
             .with_env_filter(filter)
+            .with_timer(UtcTime::rfc_3339())
+            .with_ansi(false)
             .fmt_fields(fmt::format::DefaultFields::new())
             .event_format(
                 fmt::format()

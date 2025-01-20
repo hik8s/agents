@@ -11,7 +11,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tracing::{error, warn};
+use tracing::{debug, error, info, warn};
 
 pub async fn setup_watcher<T>(
     name: &str,
@@ -85,14 +85,14 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
             if let Err(e) = client.send_request(route, &json).await {
                 warn!("Failed to handle apply event for resource {name}: {e}");
             }
-            tracing::info!("{route}(Apply)");
+            info!("{route}(Apply): {name}");
         }
         WatcherEvent::InitApply(resource) => {
             let json = wrap_kubeapi_data(resource, "initapply");
             if let Err(e) = client.send_request(route, &json).await {
                 warn!("Failed to handle init-apply event for resource {name}: {e}");
             }
-            tracing::info!("{route}(InitApply)");
+            debug!("{route}(InitApply): {name}");
         }
         WatcherEvent::Init => tracing::info!("{route}(init)"),
         WatcherEvent::InitDone => tracing::info!("{route}(initdone)"),
@@ -103,7 +103,7 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
                     warn!("Failed to handle delete event for resource {name}: {e}");
                 }
             }
-            tracing::info!("{route}(Delete)");
+            info!("{route}(Delete): {name}");
         }
     }
 }
