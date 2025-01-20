@@ -1,19 +1,23 @@
-use std::error::Error;
-
 use k8s_openapi::api::{
     apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
-    core::v1::{Namespace, Node, Pod, Service, ServiceAccount},
+    core::v1::{Event, Namespace, Node, Pod, Service, ServiceAccount},
     networking::v1::Ingress,
     rbac::v1::{ClusterRole, ClusterRoleBinding, Role},
     storage::v1::StorageClass,
 };
 use kube::Api;
 use shared::client::Hik8sClient;
+use std::fmt;
 
-use crate::{constant::ROUTE_RESOURCE, watcher::setup_watcher};
+use crate::{
+    constant::{ROUTE_EVENT, ROUTE_RESOURCE},
+    error::WatchDaemonError,
+    watcher::setup_watcher,
+};
 
 #[derive(Clone)]
-pub enum KubeApi {
+pub enum KubeApiResource {
+    Event(Api<Event>),
     Deployment(Api<Deployment>),
     DaemonSet(Api<DaemonSet>),
     ReplicaSet(Api<ReplicaSet>),
@@ -30,9 +34,33 @@ pub enum KubeApi {
     StorageClass(Api<StorageClass>),
 }
 
-impl KubeApi {
+impl fmt::Display for KubeApiResource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Event(_) => "Event",
+            Self::Deployment(_) => "Deployment",
+            Self::DaemonSet(_) => "DaemonSet",
+            Self::ReplicaSet(_) => "ReplicaSet",
+            Self::StatefulSet(_) => "StatefulSet",
+            Self::Pod(_) => "Pod",
+            Self::Service(_) => "Service",
+            Self::Namespace(_) => "Namespace",
+            Self::Node(_) => "Node",
+            Self::Ingress(_) => "Ingress",
+            Self::ServiceAccount(_) => "ServiceAccount",
+            Self::Role(_) => "Role",
+            Self::ClusterRole(_) => "ClusterRole",
+            Self::ClusterRoleBinding(_) => "ClusterRoleBinding",
+            Self::StorageClass(_) => "StorageClass",
+        };
+        write!(f, "{}", name)
+    }
+}
+
+impl KubeApiResource {
     pub fn new_all(client: &kube::Client) -> Vec<Self> {
         vec![
+            Self::Event(Api::all(client.clone())),
             Self::Deployment(Api::all(client.clone())),
             Self::Pod(Api::all(client.clone())),
             Self::DaemonSet(Api::all(client.clone())),
@@ -49,30 +77,32 @@ impl KubeApi {
             Self::StorageClass(Api::all(client.clone())),
         ]
     }
-
-    pub async fn setup_watcher(self, client: Hik8sClient) -> Result<(), Box<dyn Error>> {
-        let route = ROUTE_RESOURCE;
+    pub const fn route(&self) -> &'static str {
         match self {
-            Self::Deployment(api) => setup_watcher("Deployment", api, client, route, true).await,
-            Self::DaemonSet(api) => setup_watcher("Daemonset", api, client, route, true).await,
-            Self::ReplicaSet(api) => setup_watcher("ReplicaSet", api, client, route, true).await,
-            Self::StatefulSet(api) => setup_watcher("StatefulSet", api, client, route, true).await,
-            Self::Pod(api) => setup_watcher("Pod", api, client, route, true).await,
-            Self::Service(api) => setup_watcher("Service", api, client, route, true).await,
-            Self::Namespace(api) => setup_watcher("Namespace", api, client, route, true).await,
-            Self::Node(api) => setup_watcher("Node", api, client, route, true).await,
-            Self::Ingress(api) => setup_watcher("Ingress", api, client, route, true).await,
-            Self::ServiceAccount(api) => {
-                setup_watcher("ServiceAccount", api, client, route, true).await
-            }
-            Self::Role(api) => setup_watcher("Role", api, client, route, true).await,
-            Self::ClusterRole(api) => setup_watcher("ClusterRole", api, client, route, true).await,
-            Self::ClusterRoleBinding(api) => {
-                setup_watcher("ClusterRoleBinding", api, client, route, true).await
-            }
-            Self::StorageClass(api) => {
-                setup_watcher("StorageClass", api, client, route, true).await
-            }
+            Self::Event(_) => ROUTE_EVENT,
+            _ => ROUTE_RESOURCE,
+        }
+    }
+
+    pub async fn setup_watcher(self, client: Hik8sClient) -> Result<(), WatchDaemonError> {
+        let route = self.route();
+        let name = self.to_string();
+        match self {
+            Self::Event(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Deployment(api) => setup_watcher(name, api, client, route, true).await,
+            Self::DaemonSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ReplicaSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::StatefulSet(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Pod(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Service(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Namespace(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Node(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Ingress(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ServiceAccount(api) => setup_watcher(name, api, client, route, true).await,
+            Self::Role(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ClusterRole(api) => setup_watcher(name, api, client, route, true).await,
+            Self::ClusterRoleBinding(api) => setup_watcher(name, api, client, route, true).await,
+            Self::StorageClass(api) => setup_watcher(name, api, client, route, true).await,
         }
     }
 }
