@@ -92,8 +92,7 @@ pub async fn handle_event_and_dispatch<T: Serialize>(
             if let Err(e) = client.send_request(route, &json).await {
                 error!("Failed to handle apply event for resource {name}: {e}");
             }
-            // change this to debug
-            tracing::info!("{route}(Apply): {name}");
+            debug!("{route}(Apply): {name}");
         }
         WatcherEvent::InitApply(resource) => {
             let json = wrap_kubeapi_data(resource, "initapply");
