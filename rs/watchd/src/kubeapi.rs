@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub enum KubeApi {
+pub enum KubeApiResource {
     Event(Api<Event>),
     Deployment(Api<Deployment>),
     DaemonSet(Api<DaemonSet>),
@@ -34,7 +34,7 @@ pub enum KubeApi {
     StorageClass(Api<StorageClass>),
 }
 
-impl fmt::Display for KubeApi {
+impl fmt::Display for KubeApiResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             Self::Event(_) => "Event",
@@ -57,7 +57,7 @@ impl fmt::Display for KubeApi {
     }
 }
 
-impl KubeApi {
+impl KubeApiResource {
     pub fn new_all(client: &kube::Client) -> Vec<Self> {
         vec![
             Self::Event(Api::all(client.clone())),

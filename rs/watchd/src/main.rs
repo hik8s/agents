@@ -5,7 +5,7 @@ use tracing::warn;
 use watchd::{
     constant::ROUTE_CUSTOM_RESOURCE,
     customresource::{get_api_resource, list_crds},
-    kubeapi::KubeApi,
+    kubeapi::KubeApiResource,
     watcher::setup_watcher,
 };
 
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup resource watcher
     let mut failed_resource_names = vec![];
-    for resource in KubeApi::new_all(&kubeapi_client) {
+    for resource in KubeApiResource::new_all(&kubeapi_client) {
         let name = resource.to_string();
         resource
             .setup_watcher(hik8s_client.clone())
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Setup custom resource watcher
-    let mut failed_cr_names = vec![];
+    let mut failed_resource_names = vec![];
     for cr in list_crds(kubeapi_client.clone(), true).await? {
         if let Some(api_resource) = get_api_resource(&cr) {
             let dynamic_api = Api::<DynamicObject>::all_with(kubeapi_client.clone(), &api_resource);
@@ -46,14 +46,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             )
             .await
             .inspect_err(|_| {
-                failed_cr_names.push(name_with_group);
+                failed_resource_names.push(name_with_group);
             })
             .ok();
         }
     }
 
-    if !failed_cr_names.is_empty() {
-        warn!("{}", format_rbac_error(failed_cr_names.join(", ")));
+    if !failed_resource_names.is_empty() {
+        warn!("{}", format_rbac_error(failed_resource_names.join(", ")));
     }
 
     loop {
