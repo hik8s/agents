@@ -6,7 +6,7 @@ use threads::read_and_send::read_file_and_send_data;
 
 use shared::tracing::setup_tracing;
 use tokio::task::JoinHandle;
-use tracing::info;
+use tracing::{error, info};
 
 mod constant;
 mod error;
@@ -36,8 +36,11 @@ async fn main() -> Result<(), LogDaemonError> {
             Path::new(LOG_PATH),
             file_event_sender,
             termination_signal_clone,
-        )?;
-        info!("File events thread finished");
+        )
+        .map_err(|e| {
+            error!("Error: Thread exit in process_file_events: {}", e);
+            e
+        })?;
         Ok(())
     }));
 
@@ -45,8 +48,12 @@ async fn main() -> Result<(), LogDaemonError> {
     let client = Hik8sClient::new(false)?;
     let termination_signal_clone = Arc::clone(&termination_signal);
     threads.push(tokio::spawn(async move {
-        read_file_and_send_data(file_event_receiver, client, termination_signal_clone).await?;
-        info!("Read and send thread finished");
+        read_file_and_send_data(file_event_receiver, client, termination_signal_clone)
+            .await
+            .map_err(|e| {
+                error!("Error: Thread exit in read_file_and_send_data: {}", e);
+                e
+            })?;
         Ok(())
     }));
 

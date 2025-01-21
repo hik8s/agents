@@ -2,6 +2,7 @@ use inotify::EventMask;
 use std::collections::HashSet;
 use std::io::ErrorKind;
 use std::time::Duration;
+use tracing::error;
 use tracing::info;
 
 use std::path::Path;
@@ -43,7 +44,9 @@ pub fn process_file_events(
                     std::thread::sleep(std::time::Duration::from_millis(100));
                     continue;
                 } else {
-                    Err(e)?
+                    error!("{}", EventThreadError::IoError(e));
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    continue;
                 }
             }
         };
@@ -73,13 +76,19 @@ pub fn process_file_events(
                         if path.is_dir() {
                             listener
                                 .add_watches(&path)
-                                .expect("Failed to add directory watch");
+                                .map_err(EventThreadError::DirectoryListener)
+                                .inspect_err(|e| error!("{e}"))
+                                .ok();
                         }
                     }
                 }
             }
         }
-        sender.send(files).expect("Failed to send event");
+        sender
+            .send(files)
+            .map_err(EventThreadError::SendError)
+            .inspect_err(|e| error!("{e}"))
+            .ok();
     }
     Ok(())
 }

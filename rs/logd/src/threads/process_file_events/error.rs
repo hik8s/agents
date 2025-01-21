@@ -1,5 +1,5 @@
 use shared::tracing::TracingSetupError;
-use std::io;
+use std::{collections::HashSet, io, path::PathBuf, sync::mpsc::SendError};
 use thiserror::Error;
 
 use super::directory_listener::DirectoryListenerError;
@@ -12,4 +12,6 @@ pub enum EventThreadError {
     DirectoryListener(#[from] DirectoryListenerError),
     #[error("Tracing setup error: {0}")]
     TracingSetup(#[from] TracingSetupError),
+    #[error("Send error: {0}")]
+    SendError(#[from] SendError<HashSet<PathBuf>>),
 }

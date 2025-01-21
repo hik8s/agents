@@ -1,7 +1,12 @@
 use std::{io, sync::mpsc::RecvTimeoutError};
 use thiserror::Error;
 
-use shared::{client::Hik8sClientError, tracing::TracingSetupError};
+use shared::{
+    client::{FormDataError, Hik8sClientError},
+    tracing::TracingSetupError,
+};
+
+use super::reader::ReaderError;
 
 #[derive(Error, Debug)]
 pub enum ReadThreadError {
@@ -13,4 +18,8 @@ pub enum ReadThreadError {
     TracingSetup(#[from] TracingSetupError),
     #[error("Channel receive timeout: {0}")]
     RecvTimeout(#[from] RecvTimeoutError),
+    #[error("Form data error: {0}")]
+    FormData(#[from] FormDataError),
+    #[error("Reader error: {0}")]
+    Reader(#[from] ReaderError),
 }
