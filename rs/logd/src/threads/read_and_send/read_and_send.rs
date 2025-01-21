@@ -57,10 +57,10 @@ pub async fn read_file_and_send_data<C: Client>(
 
                     // Read new entries
                     let (data_sender, data_receiver) = tokio::sync::mpsc::unbounded_channel();
-                    if let Err(e) = read_chunk(&mut reader, 1048576, data_sender) {
-                        error!("Failed to read lines from file {}: {}", path.display(), e);
-                        continue;
-                    }
+                    read_chunk(&mut reader, 1048576, data_sender)
+                        .map_err(ReadThreadError::Reader)
+                        .inspect_err(|e| error!("Path {}: {}", path.display(), e))
+                        .ok();
 
                     // Update file position
                     let new_position = reader.stream_position().unwrap();
@@ -78,16 +78,21 @@ pub async fn read_file_and_send_data<C: Client>(
                     let stream = UnboundedReceiverStream::new(data_receiver);
 
                     // Form data
-                    let form_data = create_form_data(metadata, stream).unwrap();
+                    let form_data = match create_form_data(metadata, stream) {
+                        Ok(form_data) => form_data,
+                        Err(e) => {
+                            error!("Skipping data: {}", ReadThreadError::FormData(e));
+                            continue;
+                        }
+                    };
 
                     // Stream data
-                    if let Err(e) = client
+                    client
                         .send_multipart_request(HIK8S_ROUTE_LOG, form_data)
                         .await
-                    {
-                        error!("Failed to send data: {}", e);
-                        continue;
-                    }
+                        .map_err(ReadThreadError::Hik8sClient)
+                        .inspect_err(|e| error!("{e}"))
+                        .ok();
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
