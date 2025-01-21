@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "logd"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "bytes",
  "dotenv",
