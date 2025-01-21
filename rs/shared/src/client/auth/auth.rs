@@ -45,10 +45,11 @@ impl Auth {
         ];
 
         let res = client
-            .post(&format!("https://{}/oauth/token", self.auth0_domain))
+            .post(format!("https://{}/oauth/token", self.auth0_domain))
             .form(&params)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         let token_response: Auth0TokenResponse = res.json().await?;
         let expiration_time = Instant::now() + Duration::from_secs(token_response.expires_in);
