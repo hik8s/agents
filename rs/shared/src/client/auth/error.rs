@@ -5,9 +5,9 @@ use crate::env::EnvError;
 #[derive(Debug, Error)]
 pub enum AuthError {
     #[error("Environment variable error: {0}")]
-    EnvError(#[from] EnvError),
+    EnvVar(#[from] EnvError),
     #[error("Request error: {0}")]
-    ReqwestError(#[from] reqwest::Error),
+    Reqwest(#[from] reqwest::Error),
     #[error("JSON error: {0}")]
-    JsonError(#[from] serde_json::Error),
+    Json(#[from] serde_json::Error),
 }

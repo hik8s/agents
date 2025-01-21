@@ -1,7 +1,6 @@
 use crate::env::get_env_var;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{multipart::Form, Client};
-use serde::Serialize;
 
 use super::auth::Auth;
 use super::Hik8sClientError;
@@ -62,7 +61,7 @@ impl Hik8sClient {
         route: &str,
         json: &serde_json::Value,
     ) -> Result<(), Hik8sClientError> {
-        let token = self.auth.get_auth0_token().await.unwrap();
+        let token = self.auth.get_auth0_token().await?;
 
         self.client_with_middleware
             .post(self.get_uri(route))
