@@ -45,7 +45,7 @@ impl Hik8sClient {
         route: &str,
         form: Form,
     ) -> Result<(), Hik8sClientError> {
-        let token = self.auth.get_auth0_token().await.unwrap();
+        let token = self.auth.get_auth0_token().await?;
 
         self.client
             .post(self.get_uri(route))
