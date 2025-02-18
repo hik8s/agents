@@ -17,6 +17,7 @@ struct Auth0TokenResponse {
 
 #[derive(Clone)]
 pub struct Auth {
+    client: Client,
     auth0_domain: String,
     client_id: String,
     audience: String,
@@ -25,7 +26,9 @@ pub struct Auth {
 
 impl Auth {
     pub fn new() -> Result<Self, AuthError> {
+        let client = Client::builder().use_rustls_tls().build()?;
         Ok(Self {
+            client,
             auth0_domain: get_env_var("AUTH0_DOMAIN")?,
             client_id: get_env_var("CLIENT_ID")?,
             audience: get_env_var("AUTH0_AUDIENCE")?,
@@ -44,7 +47,8 @@ impl Auth {
             ("grant_type", "client_credentials".to_string()),
         ];
 
-        let res = client
+        let res = self
+            .client
             .post(format!("https://{}/oauth/token", self.auth0_domain))
             .form(&params)
             .send()
