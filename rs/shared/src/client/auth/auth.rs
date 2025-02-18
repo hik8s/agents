@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
-use crate::env::get_env_var;
+use crate::env::{get_env_audience, get_env_var};
 
 use super::AuthError;
 
@@ -17,35 +17,36 @@ struct Auth0TokenResponse {
 
 #[derive(Clone)]
 pub struct Auth {
-    auth0_domain: String,
+    client: Client,
+    domain: String,
     client_id: String,
-    audience: String,
+    audience: Vec<String>,
     token: Arc<Mutex<Option<(String, Instant)>>>,
 }
 
 impl Auth {
     pub fn new() -> Result<Self, AuthError> {
+        let client = Client::builder().use_rustls_tls().build()?;
         Ok(Self {
-            auth0_domain: get_env_var("AUTH0_DOMAIN")?,
+            client,
+            domain: get_env_var("AUTH_DOMAIN")?,
             client_id: get_env_var("CLIENT_ID")?,
-            audience: get_env_var("AUTH0_AUDIENCE")?,
+            audience: get_env_audience()?,
             token: Arc::new(Mutex::new(None)),
         })
     }
 
     async fn fetch_auth0_token(&self) -> Result<(String, Instant), AuthError> {
-        let client = Client::new();
-        let client_secret = get_env_var("CLIENT_SECRET")?;
+        let mut params = vec![("grant_type", "client_credentials".to_string())];
 
-        let params = [
-            ("client_id", self.client_id.clone()),
-            ("client_secret", client_secret),
-            ("audience", self.audience.clone()),
-            ("grant_type", "client_credentials".to_string()),
-        ];
+        for audience in &self.audience {
+            params.push(("audience", audience.clone()));
+        }
 
-        let res = client
-            .post(format!("https://{}/oauth/token", self.auth0_domain))
+        let res = self
+            .client
+            .post(format!("https://{}/oauth2/token", self.domain))
+            .basic_auth(&self.client_id, Some(get_env_var("CLIENT_SECRET")?))
             .form(&params)
             .send()
             .await?
@@ -77,7 +78,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_auth0_token_real() -> Result<(), AuthError> {
-        dotenv::dotenv().ok();
         // Ensure the environment variables are set to valid values before running this test
         let auth = Auth::new()?;
         let result = auth.get_auth0_token().await?;

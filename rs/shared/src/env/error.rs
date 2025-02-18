@@ -5,4 +5,6 @@ use thiserror::Error;
 pub enum EnvError {
     #[error("VarError: {0}, variable: {1}")]
     EnvVar(VarError, String),
+    #[error("Missing audience: {0}")]
+    MissingAudience(String),
 }
