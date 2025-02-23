@@ -1,6 +1,6 @@
-# Hik8s daemons
+# HiK8s daemons
 
-This repository contains daemons that need to be run in your cluster to run Hik8s:
+This repository contains small background programs (daemons) that run in your cluster and provide data to HiK8s:
 
 - [rs/logd/README.md](./rs/logd/README.md) (log daemon)
 
