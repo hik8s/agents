@@ -3,6 +3,7 @@
 This repository contains small background programs (daemons) that run in your cluster and provide data to HiK8s:
 
 - [rs/logd/README.md](./rs/logd/README.md) (log daemon)
+- [rs/watchd/README.md](./rs/watchd/README.md) (watch daemon)
 
 ## Local development
 
@@ -38,7 +39,7 @@ This runs logd and recompiles when you make changes in your IDE.
 
 ## System diagram
 
-The main components are log-daemon and wathch-daemon. This is how they interact with your Kubernetes cluster:
+The main components are log-daemon and watch-daemon. This is how they interact with your Kubernetes cluster:
 
 ```mermaid
 graph TB
@@ -62,8 +63,7 @@ graph TB
             WD[watchd]
             WD -->|watches
             resources
-            & CRDs| API
-            
+            & CRs| API
         end
     end
 
@@ -86,3 +86,5 @@ graph TB
     class HK backend
     class FS1,FS2 storage
 ```
+
+CRs=custom resources, i.e. instances of CRDs
