@@ -52,7 +52,7 @@ graph TB
         subgraph "Node 2"
             LD2[logd]
             FS2[(Host Filesystem)]
-            LD2 -->|reads| FS2
+            LD2 -->|reads /var/log/pods/*| FS2
         end
 
         subgraph "Control Plane"
