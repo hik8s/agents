@@ -39,7 +39,7 @@ This runs logd and recompiles when you make changes in your IDE.
 
 ## System diagram
 
-The main components are log-daemon and wathch-daemon. This is how they interact with your Kubernetes cluster:
+The main components are log-daemon and watch-daemon. This is how they interact with your Kubernetes cluster:
 
 ```mermaid
 graph TB
