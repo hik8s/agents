@@ -3,6 +3,7 @@
 This repository contains small background programs (daemons) that run in your cluster and provide data to HiK8s:
 
 - [rs/logd/README.md](./rs/logd/README.md) (log daemon)
+- [rs/watchd/README.md](./rs/watchd/README.md) (log daemon)
 
 ## Local development
 
@@ -62,8 +63,7 @@ graph TB
             WD[watchd]
             WD -->|watches
             resources
-            & CRDs| API
-            
+            & CRs| API
         end
     end
 
@@ -86,3 +86,5 @@ graph TB
     class HK backend
     class FS1,FS2 storage
 ```
+
+CRs=custom resources, i.e. instances of CRDs
