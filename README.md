@@ -46,7 +46,8 @@ graph TB
         subgraph "Node 2"
             LD1[logd]
             FS1[(Host Filesystem)]
-            LD1 -->|reads| FS1
+            LD1 -->|reads 
+            /var/log/pods/*| FS1
         end
         
         subgraph "Node 1"
