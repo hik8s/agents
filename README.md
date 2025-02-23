@@ -43,13 +43,13 @@ The main components are log-daemon and wathch-daemon. This is how they interact 
 ```mermaid
 graph TB
     subgraph "Kubernetes Cluster"
-        subgraph "Node 1"
+        subgraph "Node 2"
             LD1[logd]
             FS1[(Host Filesystem)]
             LD1 -->|reads| FS1
         end
         
-        subgraph "Node 2"
+        subgraph "Node 1"
             LD2[logd]
             FS2[(Host Filesystem)]
             LD2 -->|reads /var/log/pods/*| FS2
