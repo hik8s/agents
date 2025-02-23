@@ -1,6 +1,6 @@
-# Hik8s agents
+# HiK8s daemons
 
-This repository contains agents that need to be run in your cluster to run Hik8s:
+This repository contains small background programs (daemons) that run in your cluster and provide data to HiK8s:
 
 - [rs/logd/README.md](./rs/logd/README.md) (log daemon)
 
@@ -11,14 +11,14 @@ The code in this program is specific to Linux and requires a development contain
 1. Build the image
 
     ```bash
-    IMAGE_NAME="hik8s/agents-dev-container"
+    IMAGE_NAME="hik8s/daemons-dev-container"
     docker build -t $IMAGE_NAME -f Dockerfile.dev .
     ```
 
 2. Run a container
 
     ```bash
-    IMAGE_NAME="hik8s/agents-dev-container"
+    IMAGE_NAME="hik8s/daemons-dev-container"
     WORKDIR=$(grep 'WORKDIR' Dockerfile.dev | awk '{print $2}') && echo $WORKDIR
 
     docker run -it \
