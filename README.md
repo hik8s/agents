@@ -52,22 +52,28 @@ graph TB
         subgraph "Node 1"
             LD2[logd]
             FS2[(Host Filesystem)]
-            LD2 -->|reads /var/log/pods/*| FS2
+            LD2 -->|reads 
+            /var/log/pods/*| FS2
         end
 
         subgraph "Control Plane"
             API[kube-apiserver]
             WD[watchd]
-            WD -->|watches resources| API
-            WD -->|watches events| API
-            WD -->|watches CRDs| API
+            WD -->|watches
+            resources
+            & CRDs| API
+            
         end
     end
 
     HK[api.hik8s.ai]
-    LD1 -->|sends logs| HK
-    LD2 -->|sends logs| HK
-    WD -->|sends events & manifests| HK
+    LD1 -->|sends
+    logs| HK
+    LD2 -->|sends
+    logs| HK
+    WD -->|sends 
+    events & 
+    manifests| HK
 
     classDef daemon fill:#e1bee7,stroke:#8e24aa
     classDef api fill:#bbdefb,stroke:#1976d2
