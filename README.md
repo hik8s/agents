@@ -35,3 +35,54 @@ The code in this program is specific to Linux and requires a development contain
     ```
 
 This runs logd and recompiles when you make changes in your IDE.
+
+## System diagram
+
+The main components are log-daemon and wathch-daemon. This is how they interact with your Kubernetes cluster:
+
+```mermaid
+graph TB
+    subgraph "Kubernetes Cluster"
+        subgraph "Node 2"
+            LD1[logd]
+            FS1[(Host Filesystem)]
+            LD1 -->|reads 
+            /var/log/pods/*| FS1
+        end
+        
+        subgraph "Node 1"
+            LD2[logd]
+            FS2[(Host Filesystem)]
+            LD2 -->|reads 
+            /var/log/pods/*| FS2
+        end
+
+        subgraph "Control Plane"
+            API[kube-apiserver]
+            WD[watchd]
+            WD -->|watches
+            resources
+            & CRDs| API
+            
+        end
+    end
+
+    HK[api.hik8s.ai]
+    LD1 -->|sends
+    logs| HK
+    LD2 -->|sends
+    logs| HK
+    WD -->|sends 
+    events & 
+    manifests| HK
+
+    classDef daemon fill:#e1bee7,stroke:#8e24aa
+    classDef api fill:#bbdefb,stroke:#1976d2
+    classDef backend fill:#c8e6c9,stroke:#388e3c
+    classDef storage fill:#fff3e0,stroke:#f57c00
+
+    class LD1,LD2 daemon
+    class API api
+    class HK backend
+    class FS1,FS2 storage
+```
