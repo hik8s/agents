@@ -3,7 +3,7 @@
 This repository contains small background programs (daemons) that run in your cluster and provide data to HiK8s:
 
 - [rs/logd/README.md](./rs/logd/README.md) (log daemon)
-- [rs/watchd/README.md](./rs/watchd/README.md) (log daemon)
+- [rs/watchd/README.md](./rs/watchd/README.md) (watch daemon)
 
 ## Local development
 
